@@ -1,0 +1,14 @@
+.env
+**/__pycache__/
+.venv/
+pollen_counting_results/
+detected/
+detect_images/
+
+/.quarto/
+**/*.quarto_ipynb
+
+# Large data files that should not be in git
+sam_b.pt
+visualizations.zip
+_site/

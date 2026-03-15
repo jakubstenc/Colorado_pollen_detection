@@ -1,0 +1,126 @@
+# k8s/pollen-czi-preprocess-job.yaml
+# Kubernetes job for CZI → YOLO tile extraction on CESNET (stenc-ns).
+#
+# Usage:
+#   # Set image name after docker push:
+#   sed 's|IMAGE_PLACEHOLDER|ttl.sh/pollen-czi-abc123:24h|g' \
+#       k8s/pollen-czi-preprocess-job.yaml | kubectl apply -f - --kubeconfig=kubeconfig.yaml -n stenc-ns
+#
+# The job will:
+#   1. Download source .czi files from S3 (or use PVC if available)
+#   2. Run czi_ingest.py to produce YOLO tiles + data.yaml
+#   3. Upload the zipped dataset to S3 staging_area/
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-czi-preprocess
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        # Init container: download .czi files from S3 before main job starts.
+        # Remove this block if .czi files are mounted via PVC.
+        - name: s3-sync
+          image: amazon/aws-cli:latest
+          command:
+            - sh
+            - -c
+            - |
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
+                "s3://$S3_BUCKET/Ostatni/Colorado_pollen/Species/" \
+                /mnt/czi_data/ \
+                --exclude "*" --include "*.czi" \
+                --no-verify-ssl
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+      containers:
+        - name: czi-preprocessor
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          command:
+            - python
+            - czi_ingest.py
+            - --root
+            - /mnt/czi_data
+            - --out
+            - /tmp/pollen_czi_v1
+            - --channels
+            - "0"
+            - "1"
+            - "2"
+            - --z
+            - mip
+            - --overlap
+            - "0.20"
+            - --upload # auto-uploads zip to S3 staging_area/
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "64Gi" # 1 GB .czi → ~20 GB float MIP in RAM × 3 channels
+              cpu: "8"
+            requests:
+              memory: "32Gi"
+              cpu: "4"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+        - name: scratch
+          emptyDir:
+            sizeLimit: "200Gi" # Space for downloaded .czi + extracted tiles
+        - name: tmp
+          emptyDir:
+            sizeLimit: "50Gi"
+      restartPolicy: Never
+  backoffLimit: 0

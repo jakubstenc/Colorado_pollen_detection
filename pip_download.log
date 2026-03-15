@@ -1,0 +1,10 @@
+2026-03-15T19:43:13,421 Created temporary directory: /tmp/pip-build-tracker-x5ak8p01
+2026-03-15T19:43:13,421 Initialized build tracking at /tmp/pip-build-tracker-x5ak8p01
+2026-03-15T19:43:13,421 Created build tracker: /tmp/pip-build-tracker-x5ak8p01
+2026-03-15T19:43:13,421 Entered build tracker: /tmp/pip-build-tracker-x5ak8p01
+2026-03-15T19:43:13,421 Created temporary directory: /tmp/pip-download-2usjl6hx
+2026-03-15T19:43:13,430 1 location(s) to search for versions of pandas:
+2026-03-15T19:43:13,430 * https://pypi.org/simple/pandas/
+2026-03-15T19:43:13,430 Fetching project page and analyzing links: https://pypi.org/simple/pandas/
+2026-03-15T19:43:13,430 Getting page https://pypi.org/simple/pandas/
+2026-03-15T19:43:13,430 Found index url https://pypi.org/simple/
