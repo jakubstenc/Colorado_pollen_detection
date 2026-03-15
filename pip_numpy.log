@@ -1,0 +1,14 @@
+2026-03-15T19:42:24,961 Using pip 26.0.1 from /home/meow/Documents/Antigravity/Colorado_pollen_detection/.venv/lib/python3.12/site-packages/pip (python 3.12)
+2026-03-15T19:42:24,962 Non-user install because user site-packages disabled
+2026-03-15T19:42:24,999 Created temporary directory: /tmp/pip-build-tracker-3_vn_4mu
+2026-03-15T19:42:25,000 Initialized build tracking at /tmp/pip-build-tracker-3_vn_4mu
+2026-03-15T19:42:25,000 Created build tracker: /tmp/pip-build-tracker-3_vn_4mu
+2026-03-15T19:42:25,000 Entered build tracker: /tmp/pip-build-tracker-3_vn_4mu
+2026-03-15T19:42:25,000 Created temporary directory: /tmp/pip-install-105jomuu
+2026-03-15T19:42:25,000 Created temporary directory: /tmp/pip-ephem-wheel-cache-r_pmwvr0
+2026-03-15T19:42:25,013 Requirement already satisfied: numpy in ./.venv/lib/python3.12/site-packages (2.4.3)
+2026-03-15T19:42:25,023 Created temporary directory: /tmp/pip-unpack-kqn287gl
+2026-03-15T19:42:25,026 Remote version of pip: 26.0.1
+2026-03-15T19:42:25,026 Local version of pip:  26.0.1
+2026-03-15T19:42:25,027 Was pip installed by pip? True
+2026-03-15T19:42:25,027 Removed build tracker: '/tmp/pip-build-tracker-3_vn_4mu'
