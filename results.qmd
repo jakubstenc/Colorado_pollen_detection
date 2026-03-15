@@ -1,0 +1,48 @@
+---
+title: "Results & Gallery"
+description: "Visual overview of processed tiles and model outputs"
+---
+
+## 🖼️ Processed Sample Tiles
+
+Below are examples of 640x640 tiles extracted from the large-scale scans.
+
+::: {layout-ncol=2}
+![Ran_ado Sample 1](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000000_y000000.jpg)
+
+![Ran_ado Sample 2](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x005120_y005120.jpg)
+:::
+
+## 📊 Dataset Stats
+
+*As of March 2026:*
+
+- **Species**: `Ran_ado`
+- **Total Tiles**: ~20,000
+- **Resolution**: 0.88 µm/px
+- **Annotations**: Pseudo-labeled via SAM/YOLOv11
+
+## 📈 Model Performance
+
+*(Placeholder for future training metrics)*
+
+- **mAP@50**: ---
+- **Precision**: ---
+- **Recall**: ---
+
+## 🔍 Verifying Annotations
+
+To confirm the quality of the pseudo-labeled segmentations, use the `visualize_labels.py` script:
+
+```bash
+python src/visualize_labels.py \
+    --images ./dataset_ran_ado/train/images \
+    --labels ./dataset_ran_ado/train/labels \
+    --out ./verification_viz \
+    --num 50
+```
+
+This will generate 50 random samples in `./verification_viz` with the segmentation polygons overlaid on the tiles. Inspect these images to ensure:
+1. Polygons tightly fit the pollen grains.
+2. The species classification is correct.
+3. No significant background noise is being labeled.

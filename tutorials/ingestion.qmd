@@ -1,0 +1,60 @@
+---
+title: "Ingestion Guide"
+---
+
+The CZI Ingestion Pipeline converts raw Zeiss `.czi` scans into 640x640 JPG tiles formatted for YOLO training.
+
+## 🏗️ Prerequisites
+
+Ensure you have initialized the virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+# Use the IPv4 wrapper if you experience network hangs
+python3 pip_ipv4.py install -r requirements.txt
+```
+
+## 📂 Source Data Structure
+
+The script expects a directory structure where species codes are embedded in folder names:
+
+```text
+/path/to/data/
+├── Ran_ado/
+│   ├── Source/
+│   │   ├── scan_001.czi
+│   │   └── scan_002.czi
+├── Ran_rep/
+│   └── ...
+```
+
+## 🛠️ Running the Ingest
+
+To process all files for a specific species:
+
+```bash
+python src/czi_ingest.py \
+    --root /mnt/bucket/PEG/Colorado/Source/Ran_ado/ \
+    --out ./dataset_ran_ado \
+    --channels 0 1 2 \
+    --split 0.8
+```
+
+### Key Parameters
+
+| Flag | Description |
+|------|-------------|
+| `--root` | Deepest root directory to scan for .czi files |
+| `--out` | Target directory for images, labels, and data.yaml |
+| `--channels` | Indices of fluorescence channels to use for R, G, B |
+| `--split` | Train/Val ratio (e.g. 0.8 = 80% training data) |
+| `--dry-run` | Preview the file list without writing to disk |
+
+## 📐 Resolution & Scaling
+
+The pipeline automatically extracts the `PhysicalSizeX` metadata from the CZI. This is crucial for:
+1. Scaling measurements in the final analysis.
+2. Filtering debris based on physical area (pollen grains are typically 10–100µm).
+
+Currently, the **Colorado** scans processed show a resolution of **~0.88 µm/px**.

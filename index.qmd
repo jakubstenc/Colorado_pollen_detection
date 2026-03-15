@@ -1,0 +1,51 @@
+---
+title: "Colorado Pollen Detection Pipeline"
+subtitle: "Scaling from 18k Zeiss Scans to Deep Learning Insights"
+image: /home/meow/Documents/Antigravity/Colorado_pollen_detection/sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000000_y000000.jpg
+---
+
+Welcome to the documentation for the **Colorado Pollen Detection** project. This pipeline is designed to handle high-resolution `.czi` (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv11 models.
+
+> [!IMPORTANT]
+> **Segmentation-Based**: All labeling in this project is performed as **Instance Segmentation** (polygons), not just bounding boxes. This allows for precise measurements of pollen area and diameter.
+
+## 🚀 Key Features
+
+- **High-Resolution Tiling**: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.
+- **Max-Z Projection**: Automated MIP reduction to consolidate focus levels without losing detail.
+- **Pseudo-Labelling**: Leverages existing models to auto-annotate new datasets, drastically reducing manual effort.
+- **Cloud Scale**: Support for Kubernetes-based distributed ingestion on CESNET.
+
+## 📦 Data Storage Policy
+
+To keep the repository lightweight and efficient, large datasets and model weights are **not** stored on GitHub. Instead, they are synchronized with the **CESNET S3 (S3.cl4.du.cesnet.cz)** storage.
+
+- **Source Scans**: Stored in `s3://bucket/Ostatni/Colorado_pollen/Species/`
+- **YOLO Datasets**: Stored in `s3://bucket/Ostatni/Colorado_pollen_detection/staging_area/`
+- **Models**: Stored in `s3://bucket/Ostatni/Colorado_pollen_detection/trained_models/`
+
+## 🛠️ Pipeline Overview
+
+::: {#fig-pipeline}
+```{mermaid}
+graph LR
+  A[.czi Scans] --> B[MIP Projection]
+  B --> C[640x640 Tiling]
+  C --> D[Pseudo-Labeling]
+  D --> E[YOLOv11 Training]
+  E --> F[Inference & Discovery]
+```
+Pipeline from Raw Data to Biological Insights
+:::
+
+## 📖 Get Started
+
+Check the following sections to get up and running:
+
+- [Ingestion Tutorial](tutorials/ingestion.qmd): How to convert your first .czi folder.
+- **Training**: Set up GPU training using `src/train_pollen.py`.
+- **Pseudo-Labeling**: Auto-annotate tiles using `src/pseudo_label.py`.
+
+---
+
+*Project maintained by Jakub Štenc (CESNET / Prague).*

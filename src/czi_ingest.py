@@ -86,19 +86,25 @@ def get_mip_rgb(img, channels: list[int]) -> np.ndarray:
     """
     Compute Maximum Intensity Projection across Z for the given channels.
     Returns uint8 RGB array (H, W, 3).
-
-    Memory note: Dask computes each channel independently to keep RAM usage low.
-    Peak RAM ≈ (H × W × 4 bytes × n_z_slices) per channel.
     """
     dask_czyx = img.get_image_dask_data("CZYX", S=0)   # (C, Z, H, W)
+    num_c = dask_czyx.shape[0]
     channels_data = []
-    for c in channels[:3]:                              # cap at 3 channels
+    
+    # Only iterate over channels that actually exist in the file
+    target_channels = [c for c in channels[:3] if c < num_c]
+    
+    for c in target_channels:
         mip = dask_czyx[c].max(axis=0).compute()       # (H, W) — Z collapsed
         channels_data.append(mip)
 
-    # Pad to 3 channels if fewer provided
+    # Pad to 3 channels if fewer than 3 were extracted
     while len(channels_data) < 3:
-        channels_data.append(np.zeros_like(channels_data[0]))
+        if len(channels_data) > 0:
+            channels_data.append(np.zeros_like(channels_data[0]))
+        else:
+            # Fallback for empty image
+            channels_data.append(np.zeros((1024, 1024), dtype=np.uint8))
 
     rgb = np.stack(channels_data, axis=-1)              # (H, W, 3)
     return normalize_to_uint8(rgb)

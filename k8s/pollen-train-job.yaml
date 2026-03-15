@@ -1,0 +1,69 @@
+# k8s/pollen-train-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-train-species
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      containers:
+        - name: train-worker
+          image: IMAGE_PLACEHOLDER # e.g. ttl.sh/pollen-train-v1
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              # 1. Sync dataset from S3
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
+                "s3://$S3_BUCKET/Ostatni/Colorado_pollen_detection/staging_area/dataset_ran_ado/" \
+                /app/datasets/pollen/ \
+                --no-verify-ssl
+              
+              # 2. Start training
+              python src/train_pollen.py \
+                --data /app/datasets/pollen/data.yaml \
+                --epochs 100 \
+                --batch 32 \
+                --name pollen_species_v1
+              
+              # 3. Sync weights back to S3
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
+                /app/Colorado_Pollen/ \
+                "s3://$S3_BUCKET/Ostatni/Colorado_pollen_detection/trained_models/pollen_species_v1/" \
+                --no-verify-ssl
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: "32Gi"
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: 1
+              memory: "16Gi"
+              cpu: "4"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "16Gi"
+      restartPolicy: Never
+  backoffLimit: 0

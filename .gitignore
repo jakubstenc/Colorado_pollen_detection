@@ -8,7 +8,17 @@ detect_images/
 /.quarto/
 **/*.quarto_ipynb
 
-# Large data files that should not be in git
+# Large data files and directories
 sam_b.pt
 visualizations.zip
 _site/
+dataset_ran_ado/
+sample_tiles/
+verification_viz/
+*.zip
+*.jpg
+*.txt
+!requirements.txt
+!.github/**/*.yml
+!src/**/*.py
+!k8s/**/*.yaml

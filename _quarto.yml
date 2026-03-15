@@ -1,0 +1,29 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Colorado Pollen Discovery"
+  description: "Automated CZI Image Analysis and Pollen Classification"
+  navbar:
+    background: "#0d1117"
+    foreground: "#f0f6fc"
+    left:
+      - href: index.qmd
+        text: Home
+      - href: tutorials/ingestion.qmd
+        text: Ingestion Guide
+      - href: results.qmd
+        text: Results
+    right:
+      - icon: github
+        href: https://github.com/jakubstenc/colorado_pollen
+
+format:
+  html:
+    theme:
+      dark: [cosmo, styles.css]
+    code-fold: true
+    code-summary: "Show the code"
+    toc: true
+    number-sections: true
