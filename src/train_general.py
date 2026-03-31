@@ -18,7 +18,7 @@ def prep_dataset():
     if os.path.exists(DATASET_ROOT):
         shutil.rmtree(DATASET_ROOT)
         
-    for split in ['train', 'val']:
+    for split in ['train', 'val', 'test']:
         os.makedirs(os.path.join(DATASET_ROOT, split, 'images'), exist_ok=True)
         os.makedirs(os.path.join(DATASET_ROOT, split, 'labels'), exist_ok=True)
         
@@ -50,14 +50,17 @@ def prep_dataset():
         return False
         
     random.shuffle(pairs)
-    split_idx = int(len(pairs) * 0.2)
+    total = len(pairs)
+    test_idx = int(total * 0.1)
+    val_idx = int(total * 0.2)
     
-    val_pairs = pairs[:split_idx]
-    train_pairs = pairs[split_idx:]
+    test_pairs = pairs[:test_idx]
+    val_pairs = pairs[test_idx:val_idx]
+    train_pairs = pairs[val_idx:]
     
-    print(f"📦 Assembling dataset: {len(train_pairs)} Train | {len(val_pairs)} Val")
+    print(f"📦 Assembling dataset: {len(train_pairs)} Train | {len(val_pairs)} Val | {len(test_pairs)} Test")
     
-    for split_pairs, split_name in [(train_pairs, 'train'), (val_pairs, 'val')]:
+    for split_pairs, split_name in [(train_pairs, 'train'), (val_pairs, 'val'), (test_pairs, 'test')]:
         for img, lbl, is_pos in split_pairs:
             base = os.path.basename(img)
             name_only = os.path.splitext(base)[0]
@@ -81,6 +84,7 @@ def prep_dataset():
         'path': os.path.abspath(DATASET_ROOT),
         'train': 'train/images',
         'val': 'val/images',
+        'test': 'test/images',
         'names': {0: 'pollen'}
     }
     with open(os.path.join(DATASET_ROOT, 'data.yaml'), 'w') as f:
@@ -116,6 +120,9 @@ def train_general():
         flipud=0.5,
         fliplr=0.5
     )
+    
+    print("🔬 Running Final Evaluation strictly on the isolated Test set...")
+    metrics = model.val(data=os.path.join(DATASET_ROOT, 'data.yaml'), split='test', project=MODEL_DIR, name=f"{run_name}_test_eval")
     
     actual_save_dir = results.save_dir
     best_weights = os.path.join(actual_save_dir, "weights", "best.pt")
