@@ -103,10 +103,10 @@ def train_general():
     
     results = model.train(
         data=os.path.join(DATASET_ROOT, 'data.yaml'),
-        epochs=100,
+        epochs=500,
         patience=0,
         close_mosaic=20,
-        batch=16,
+        batch=64,
         imgsz=640,
         project=MODEL_DIR,
         name=run_name,
