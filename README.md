@@ -34,10 +34,11 @@ The project operates locally against S3 datasets or on the **CESNET MetaCentrum*
 
 ### Key Strategies:
 1. **Two-Stage Architecture:** 
-   - **Stage 1 (General Pollen Model):** Finds *any* pollen grain anywhere, unifying all annotations mathematically into class `0`.
+   - **Stage 1 (General Pollen Segmentation):** Finds *any* pollen grain anywhere using the massive 40M parameter `yolov8l-seg.pt` Instance Segmentation model. All annotations are mapped to class `0` to build a highly generalized contour detector.
    - **Stage 2 (Species Classifier):** Uses the extracted dataset from Stage 1 to strictly build and refine a multi-class species discriminator.
-2. **High-Res CZI Tiling & Overview:** Scans are automatically segmented into overlapping 640px tiles, processed through YOLO, and finally reconstructed into a downscaled 2000px single-panel visual mosaic with detection polygons drawn directly on top.
-3. **Mosaic Disabling:** We disable mosaic augmentation for the final 20 epochs to stabilize training loss and eliminate ghost detections.
+2. **Dynamic Dataset Compilation:** Zero-maintenance data ingestion. The script passively consumes un-annotated images from `Staged_negatives` (automatically generating empty label files) and parses an exact 80/10/10 Train/Val/Test random split to guarantee unbiased post-training evaluation.
+3. **High-Res CZI Tiling & Overview:** Scans are automatically segmented into overlapping 640px tiles, processed through YOLO, and finally reconstructed into a downscaled 2000px single-panel visual mosaic with detection polygons drawn directly on top.
+4. **Optimized Training:** The A100 pipeline forces a massive 500-epoch hyper-optimized run with `batch=32` and `patience=0`. We disable mosaic augmentation for the final 20 epochs to stabilize training loss and permanently eliminate ghost detections.
 
 ---
 

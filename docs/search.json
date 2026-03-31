@@ -46,21 +46,21 @@
     "href": "index.html",
     "title": "Colorado Pollen Detection Pipeline",
     "section": "",
-    "text": "Welcome to the documentation for the Colorado Pollen Detection project. This pipeline is designed to handle high-resolution .czi (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv11 models."
+    "text": "Welcome to the documentation for the Colorado Pollen Detection project. This pipeline is designed to handle high-resolution .czi (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv8 Instance Segmentation architectures."
   },
   {
     "objectID": "index.html#key-features",
     "href": "index.html#key-features",
     "title": "Colorado Pollen Detection Pipeline",
     "section": "1 🚀 Key Features",
-    "text": "1 🚀 Key Features\n\nHigh-Resolution Tiling: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.\nMax-Z Projection: Automated MIP reduction to consolidate focus levels without losing detail.\nPseudo-Labelling: Leverages existing models to auto-annotate new datasets, drastically reducing manual effort.\nCloud Scale: Support for Kubernetes-based distributed ingestion on CESNET."
+    "text": "1 🚀 Key Features\n\nHigh-Resolution Tiling: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.\nMax-Z Projection: Automated MIP reduction to consolidate focus levels without losing detail.\nRigorous 80/10/10 Split: The pipeline enforces a strictly isolated 10% Test dataset, guaranteeing totally unbiased post-training evaluation metrics.\nAutomated Negative Filtering: 100% automated ingestion of purely empty background images to hyper-penalize false-positive debris detections."
   },
   {
     "objectID": "index.html#data-storage-policy",
     "href": "index.html#data-storage-policy",
     "title": "Colorado Pollen Detection Pipeline",
     "section": "2 📦 Data Storage Policy",
-    "text": "2 📦 Data Storage Policy\nTo keep the repository lightweight and efficient, large datasets and model weights are not stored on GitHub. Instead, they are synchronized with the CESNET S3 (S3.cl4.du.cesnet.cz) storage.\n\nSource Scans: Stored in s3://bucket/Ostatni/Colorado_pollen/Species/\nYOLO Datasets: Stored in s3://bucket/Ostatni/Colorado_pollen_detection/staging_area/\nModels: Stored in s3://bucket/Ostatni/Colorado_pollen_detection/trained_models/"
+    "text": "2 📦 Data Storage Policy\nTo keep the repository lightweight and efficient, large datasets and model weights are not stored on GitHub. Instead, they are synchronized with the CESNET S3 (S3.cl4.du.cesnet.cz) storage.\n\nSource Scans: Stored in s3://bucket/PEG/Colorado/detect_images/\nYOLO Datasets: Stored dynamically via s3://bucket/PEG/Colorado/Staged_area/ and s3://bucket/PEG/Colorado/Staged_negatives/\nModels: Stored reliably in s3://bucket/PEG/Colorado/trained_models/"
   },
   {
     "objectID": "index.html#pipeline-overview",

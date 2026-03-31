@@ -325,26 +325,26 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Welcome to the documentation for the <strong>Colorado Pollen Detection</strong> project. This pipeline is designed to handle high-resolution <code>.czi</code> (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv11 models.</p>
+<p>Welcome to the documentation for the <strong>Colorado Pollen Detection</strong> project. This pipeline is designed to handle high-resolution <code>.czi</code> (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art <strong>YOLOv8 Instance Segmentation</strong> architectures.</p>
 <blockquote class="blockquote">
-<p>[!IMPORTANT] <strong>Segmentation-Based</strong>: All labeling in this project is performed as <strong>Instance Segmentation</strong> (polygons), not just bounding boxes. This allows for precise measurements of pollen area and diameter.</p>
+<p>[!IMPORTANT] <strong>Segmentation-Based</strong>: All labeling in this project is performed as <strong>Instance Segmentation</strong> (polygons), not just bounding boxes. We utilize the enormous 40M parameter <code>yolov8l-seg.pt</code> model to trace exact, mathematically precise masks around pollen perimeters.</p>
 </blockquote>
 <section id="key-features" class="level2" data-number="1">
 <h2 data-number="1" class="anchored" data-anchor-id="key-features"><span class="header-section-number">1</span> 🚀 Key Features</h2>
 <ul>
 <li><strong>High-Resolution Tiling</strong>: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.</li>
 <li><strong>Max-Z Projection</strong>: Automated MIP reduction to consolidate focus levels without losing detail.</li>
-<li><strong>Pseudo-Labelling</strong>: Leverages existing models to auto-annotate new datasets, drastically reducing manual effort.</li>
-<li><strong>Cloud Scale</strong>: Support for Kubernetes-based distributed ingestion on CESNET.</li>
+<li><strong>Rigorous 80/10/10 Split</strong>: The pipeline enforces a strictly isolated 10% Test dataset, guaranteeing totally unbiased post-training evaluation metrics.</li>
+<li><strong>Automated Negative Filtering</strong>: 100% automated ingestion of purely empty background images to hyper-penalize false-positive debris detections.</li>
 </ul>
 </section>
 <section id="data-storage-policy" class="level2" data-number="2">
 <h2 data-number="2" class="anchored" data-anchor-id="data-storage-policy"><span class="header-section-number">2</span> 📦 Data Storage Policy</h2>
 <p>To keep the repository lightweight and efficient, large datasets and model weights are <strong>not</strong> stored on GitHub. Instead, they are synchronized with the <strong>CESNET S3 (S3.cl4.du.cesnet.cz)</strong> storage.</p>
 <ul>
-<li><strong>Source Scans</strong>: Stored in <code>s3://bucket/Ostatni/Colorado_pollen/Species/</code></li>
-<li><strong>YOLO Datasets</strong>: Stored in <code>s3://bucket/Ostatni/Colorado_pollen_detection/staging_area/</code></li>
-<li><strong>Models</strong>: Stored in <code>s3://bucket/Ostatni/Colorado_pollen_detection/trained_models/</code></li>
+<li><strong>Source Scans</strong>: Stored in <code>s3://bucket/PEG/Colorado/detect_images/</code></li>
+<li><strong>YOLO Datasets</strong>: Stored dynamically via <code>s3://bucket/PEG/Colorado/Staged_area/</code> and <code>s3://bucket/PEG/Colorado/Staged_negatives/</code></li>
+<li><strong>Models</strong>: Stored reliably in <code>s3://bucket/PEG/Colorado/trained_models/</code></li>
 </ul>
 </section>
 <section id="pipeline-overview" class="level2" data-number="3">
