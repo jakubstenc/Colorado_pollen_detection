@@ -22,11 +22,26 @@ spec:
             - sh
             - -c
             - |
-              echo "Starting YOLOv8 training on natively mounted dataset..."
-              python3 /home/meow/Documents/Antigravity/Colorado_pollen_detection/src/train_general.py
+              echo "Preparing container paths..."
+              mkdir -p /app/Staged_area /app/Staged_negatives /app/models/general_pollen
+              
+              echo "Downloading datasets via S3..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Staged_area/" /app/Staged_area/ --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Staged_negatives/" /app/Staged_negatives/ --no-verify-ssl
+              
+              echo "Starting YOLOv8 general training..."
+              export STAGED_AREA=/app/Staged_area/
+              export STAGED_NEGATIVES=/app/Staged_negatives/
+              export DATASET_ROOT=/app/temp_dataset
+              export MODEL_DIR=/app/models/general_pollen/
+              
+              python3 /scripts/train_general.py
+              
+              echo "Uploading best weights to S3..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/models/general_pollen/ "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl
               
               echo "Generating Email notification..."
-              python3 /scripts/notify.py --type training --job_name "YOLO General Pollen Model" --results /home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt
+              python3 /scripts/notify.py --type training --job_name "YOLO General Pollen Model" --results /app/models/general_pollen/latest.pt
           resources:
             limits:
               memory: "32Gi"
@@ -59,10 +74,6 @@ spec:
               name: dshm
             - mountPath: /scripts
               name: scripts-vol
-            - mountPath: /home/meow/cesnet_cloud/bucket
-              name: s3-bucket-mount
-            - mountPath: /home/meow/Documents/Antigravity/Colorado_pollen_detection
-              name: project-mount
   volumes:
     - name: dshm
       emptyDir:
@@ -71,9 +82,3 @@ spec:
     - name: scripts-vol
       configMap:
         name: notify-script
-    - name: s3-bucket-mount
-      hostPath:
-        path: /home/meow/cesnet_cloud/bucket
-    - name: project-mount
-      hostPath:
-        path: /home/meow/Documents/Antigravity/Colorado_pollen_detection
