@@ -5,13 +5,23 @@ import argparse
 import csv
 from email.message import EmailMessage
 
-def parse_results(csv_path):
+def parse_results(file_path):
     """Parse YOLOv8 results.csv to format the final metrics."""
+    if not os.path.exists(file_path):
+        return f"File {file_path} not found. Could not parse metrics."
+        
+    csv_path = file_path
+    if file_path.endswith('.pt'):
+        # Resolve symlink (e.g., latest.pt -> run_dir/weights/best.pt)
+        real_pt = os.path.realpath(file_path)
+        run_dir = os.path.dirname(os.path.dirname(real_pt))
+        csv_path = os.path.join(run_dir, "results.csv")
+    
     if not os.path.exists(csv_path):
-        return "Model results.csv not found. Could not parse metrics."
+        return f"Model {csv_path} not found. Could not parse metrics."
     
     try:
-        with open(csv_path, 'r') as f:
+        with open(csv_path, 'r', encoding='utf-8') as f:
             reader = list(csv.DictReader(f))
             if not reader:
                 return "Model results.csv is empty."

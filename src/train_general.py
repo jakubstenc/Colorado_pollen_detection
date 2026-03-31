@@ -122,13 +122,11 @@ def train_general():
     actual_save_dir = results.save_dir
     best_weights = os.path.join(actual_save_dir, "weights", "best.pt")
     
-    # Symlink to latest
-    latest_link = os.path.join(MODEL_DIR, "latest.pt")
-    if os.path.lexists(latest_link):
-        os.remove(latest_link)
+    # Copy to latest.pt for S3 compatibility (S3 does not support symlinks)
+    latest_copy = os.path.join(MODEL_DIR, "latest.pt")
     if os.path.exists(best_weights):
-        os.symlink(best_weights, latest_link)
-        print(f"✅ Training completed! Latest model linked at: {latest_link}")
+        shutil.copy(best_weights, latest_copy)
+        print(f"✅ Training Complete. Model copied to {latest_copy}")
     else:
         print("⚠️ Training completed but could not find best.pt!")
 
