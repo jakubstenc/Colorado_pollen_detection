@@ -10,7 +10,7 @@ Below are examples of 640x640 tiles extracted from the large-scale scans.
 ::: {layout-ncol=2}
 ![Ran_ado Sample 1](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000000_y000000.jpg)
 
-![Ran_ado Sample 2](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x005120_y005120.jpg)
+![Ran_ado Sample 2](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000512_y000512.jpg)
 :::
 
 ## 📊 Dataset Stats
@@ -39,10 +39,16 @@ python src/visualize_labels.py \
     --images ./dataset_ran_ado/train/images \
     --labels ./dataset_ran_ado/train/labels \
     --out ./verification_viz \
-    --num 50
+    --num 20
 ```
 
-This will generate 50 random samples in `./verification_viz` with the segmentation polygons overlaid on the tiles. Inspect these images to ensure:
+This will generate 20 random samples in `./verification_viz` with the segmentation polygons overlaid on the tiles. Inspect these images to ensure:
 1. Polygons tightly fit the pollen grains.
 2. The species classification is correct.
 3. No significant background noise is being labeled.
+
+## ☁️ Remote Storage
+
+Full datasets and models are stored on CESNET S3:
+- **Bucket**: `bucket`
+- **Path**: `Ostatni/Colorado_pollen_detection/staging_area/`

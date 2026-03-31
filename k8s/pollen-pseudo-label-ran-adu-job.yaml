@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-pseudo-label-ran-adu
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      restartPolicy: Never
+      containers:
+        - name: worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          image: ttl.sh/pollen-train-anti:24h
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Downloading dataset..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/staging_area/dataset_ran_adu_unseen.zip" \
+                /mnt/dataset.zip \
+                --no-verify-ssl
+              
+              echo "Downloading model..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen_v1/general_pollen_v1/train_run1/weights/best.pt" \
+                /mnt/best.pt \
+                --no-verify-ssl
+
+              echo "Running inference..."
+              python src/pseudo_label.py --zip /mnt/dataset.zip --model /mnt/best.pt --outdir /mnt/output_dataset
+
+              echo "Zipping results..."
+              cd /mnt/output_dataset && zip -r /mnt/dataset_ran_adu_pseudo_labels.zip ./*
+
+              echo "Uploading results..."
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl cp \
+                /mnt/dataset_ran_adu_pseudo_labels.zip \
+                "s3://$S3_BUCKET/PEG/Colorado/staging_area/dataset_ran_adu_pseudo_labels.zip"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /mnt
+              name: scratch
+            - mountPath: /app/src
+              name: src-vol
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "4Gi"
+        - name: scratch
+          emptyDir:
+            sizeLimit: "20Gi"
+        - name: src-vol
+          configMap:
+            name: pseudo-label-script

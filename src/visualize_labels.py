@@ -11,13 +11,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# A set of distinguishable colors for different classes
+# High-contrast neon colors for better visibility over red pollen
 COLORS = [
-    (255, 0, 0), (0, 255, 0), (0, 0, 255),
-    (255, 255, 0), (0, 255, 255), (255, 0, 255),
-    (128, 0, 0), (0, 128, 0), (0, 0, 128)
+    (0, 255, 255),   # Yellow
+    (255, 255, 0),   # Cyan
+    (255, 0, 255),   # Magenta
+    (0, 255, 0),     # Bright Green
+    (255, 255, 255), # White
 ]
-
 def draw_yolo_polygons(image, label_path):
     """Draw polygons from a YOLO format txt file onto an image."""
     if not os.path.exists(label_path):
@@ -43,12 +44,12 @@ def draw_yolo_polygons(image, label_path):
         color = COLORS[class_id % len(COLORS)]
         
         # Draw polygon
-        cv2.polylines(overlay, [pts], isClosed=True, color=color, thickness=2)
+        cv2.polylines(overlay, [pts], isClosed=True, color=color, thickness=4)
         # Fill with transparency
         cv2.fillPoly(overlay, [pts], color=color)
     
-    # Blend with original
-    return cv2.addWeighted(overlay, 0.4, image, 0.6, 0)
+    # Blend with original (60% fill color opacity)
+    return cv2.addWeighted(overlay, 0.6, image, 0.4, 0)
 
 def main():
     parser = argparse.ArgumentParser()

@@ -1,0 +1,119 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-extract-300
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: s3-sync
+          image: amazon/aws-cli:latest
+          command:
+            - sh
+            - -c
+            - |
+              mkdir -p /mnt/czi_data/Ran_ado /mnt/czi_data/Vio_adu
+              
+              echo "Downloading Ran_ado files..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/$f" "/mnt/czi_data/Ran_ado/$f" --no-verify-ssl
+              done
+
+              echo "Downloading Vio_adu files..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Vio_adu/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Vio_adu/$f" "/mnt/czi_data/Vio_adu/$f" --no-verify-ssl
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+      containers:
+        - name: czi-preprocessor
+          image: ttl.sh/pollen-czi-anti-v2:24h
+          imagePullPolicy: Always
+          command:
+            - python
+            - extract_300.py
+            - --root
+            - /mnt/czi_data
+            - --out
+            - /tmp/dataset_300_per_species
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "32Gi"
+              cpu: "4"
+            requests:
+              memory: "16Gi"
+              cpu: "2"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+        - name: scratch
+          emptyDir:
+            sizeLimit: "20Gi"
+        - name: tmp
+          emptyDir:
+            sizeLimit: "50Gi"
+      restartPolicy: Never
+  backoffLimit: 1
