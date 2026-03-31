@@ -1,6 +1,10 @@
 project:
   type: website
-  output-dir: _site
+  output-dir: docs
+  render:
+    - index.qmd
+    - tutorials/ingestion.qmd
+    - results.qmd
 
 website:
   title: "Colorado Pollen Discovery"

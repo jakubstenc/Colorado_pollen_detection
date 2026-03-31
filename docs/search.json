@@ -1,0 +1,114 @@
+[
+  {
+    "objectID": "results.html",
+    "href": "results.html",
+    "title": "Results & Gallery",
+    "section": "",
+    "text": "Below are examples of 640x640 tiles extracted from the large-scale scans.\n\n\n\n\n\n\nRan_ado Sample 1\n\n\n\n\n\n\n\nRan_ado Sample 2"
+  },
+  {
+    "objectID": "results.html#processed-sample-tiles",
+    "href": "results.html#processed-sample-tiles",
+    "title": "Results & Gallery",
+    "section": "",
+    "text": "Below are examples of 640x640 tiles extracted from the large-scale scans.\n\n\n\n\n\n\nRan_ado Sample 1\n\n\n\n\n\n\n\nRan_ado Sample 2"
+  },
+  {
+    "objectID": "results.html#dataset-stats",
+    "href": "results.html#dataset-stats",
+    "title": "Results & Gallery",
+    "section": "2 📊 Dataset Stats",
+    "text": "2 📊 Dataset Stats\nAs of March 2026:\n\nSpecies: Ran_ado\nTotal Tiles: ~20,000\nResolution: 0.88 µm/px\nAnnotations: Pseudo-labeled via SAM/YOLOv11"
+  },
+  {
+    "objectID": "results.html#model-performance",
+    "href": "results.html#model-performance",
+    "title": "Results & Gallery",
+    "section": "3 📈 Model Performance",
+    "text": "3 📈 Model Performance\n(Placeholder for future training metrics)\n\nmAP@50: —\nPrecision: —\nRecall: —"
+  },
+  {
+    "objectID": "results.html#verifying-annotations",
+    "href": "results.html#verifying-annotations",
+    "title": "Results & Gallery",
+    "section": "4 🔍 Verifying Annotations",
+    "text": "4 🔍 Verifying Annotations\nTo confirm the quality of the pseudo-labeled segmentations, use the visualize_labels.py script:\npython src/visualize_labels.py \\\n    --images ./dataset_ran_ado/train/images \\\n    --labels ./dataset_ran_ado/train/labels \\\n    --out ./verification_viz \\\n    --num 20\nThis will generate 20 random samples in ./verification_viz with the segmentation polygons overlaid on the tiles. Inspect these images to ensure: 1. Polygons tightly fit the pollen grains. 2. The species classification is correct. 3. No significant background noise is being labeled."
+  },
+  {
+    "objectID": "results.html#remote-storage",
+    "href": "results.html#remote-storage",
+    "title": "Results & Gallery",
+    "section": "5 ☁️ Remote Storage",
+    "text": "5 ☁️ Remote Storage\nFull datasets and models are stored on CESNET S3: - Bucket: bucket - Path: Ostatni/Colorado_pollen_detection/staging_area/"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "",
+    "text": "Welcome to the documentation for the Colorado Pollen Detection project. This pipeline is designed to handle high-resolution .czi (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv11 models."
+  },
+  {
+    "objectID": "index.html#key-features",
+    "href": "index.html#key-features",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "1 🚀 Key Features",
+    "text": "1 🚀 Key Features\n\nHigh-Resolution Tiling: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.\nMax-Z Projection: Automated MIP reduction to consolidate focus levels without losing detail.\nPseudo-Labelling: Leverages existing models to auto-annotate new datasets, drastically reducing manual effort.\nCloud Scale: Support for Kubernetes-based distributed ingestion on CESNET."
+  },
+  {
+    "objectID": "index.html#data-storage-policy",
+    "href": "index.html#data-storage-policy",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "2 📦 Data Storage Policy",
+    "text": "2 📦 Data Storage Policy\nTo keep the repository lightweight and efficient, large datasets and model weights are not stored on GitHub. Instead, they are synchronized with the CESNET S3 (S3.cl4.du.cesnet.cz) storage.\n\nSource Scans: Stored in s3://bucket/Ostatni/Colorado_pollen/Species/\nYOLO Datasets: Stored in s3://bucket/Ostatni/Colorado_pollen_detection/staging_area/\nModels: Stored in s3://bucket/Ostatni/Colorado_pollen_detection/trained_models/"
+  },
+  {
+    "objectID": "index.html#pipeline-overview",
+    "href": "index.html#pipeline-overview",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "3 🛠️ Pipeline Overview",
+    "text": "3 🛠️ Pipeline Overview\n\n\n\n\n\n\n\n\ngraph LR\n  A[.czi Scans] --&gt; B[MIP Projection]\n  B --&gt; C[640x640 Tiling]\n  C --&gt; D[Pseudo-Labeling]\n  D --&gt; E[YOLOv11 Training]\n  E --&gt; F[Inference & Discovery]\n\n\n\n\n\n\n\n\nFigure 1: Pipeline from Raw Data to Biological Insights"
+  },
+  {
+    "objectID": "index.html#get-started",
+    "href": "index.html#get-started",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "4 📖 Get Started",
+    "text": "4 📖 Get Started\nCheck the following sections to get up and running:\n\nIngestion Tutorial: How to convert your first .czi folder.\nTraining: Set up GPU training using src/train_pollen.py.\nPseudo-Labeling: Auto-annotate tiles using src/pseudo_label.py.\n\n\nProject maintained by Jakub Štenc (CESNET / Prague)."
+  },
+  {
+    "objectID": "tutorials/ingestion.html",
+    "href": "tutorials/ingestion.html",
+    "title": "Ingestion Guide",
+    "section": "",
+    "text": "The CZI Ingestion Pipeline converts raw Zeiss .czi scans into 640x640 JPG tiles formatted for YOLO training."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#prerequisites",
+    "href": "tutorials/ingestion.html#prerequisites",
+    "title": "Ingestion Guide",
+    "section": "1 🏗️ Prerequisites",
+    "text": "1 🏗️ Prerequisites\nEnsure you have initialized the virtual environment:\npython3 -m venv .venv\nsource .venv/bin/activate\n# Use the IPv4 wrapper if you experience network hangs\npython3 pip_ipv4.py install -r requirements.txt"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#source-data-structure",
+    "href": "tutorials/ingestion.html#source-data-structure",
+    "title": "Ingestion Guide",
+    "section": "2 📂 Source Data Structure",
+    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Ran_ado/\n│   ├── Source/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n├── Ran_rep/\n│   └── ..."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#running-the-ingest",
+    "href": "tutorials/ingestion.html#running-the-ingest",
+    "title": "Ingestion Guide",
+    "section": "3 🛠️ Running the Ingest",
+    "text": "3 🛠️ Running the Ingest\n\n3.1 Option A: Kubernetes Cluster (S3 Upload)\nBest for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped .zip file archive to S3.\npython k8s/deploy_czi.sh\n\n\n3.2 Option B: Local Execution (Direct to Cloud Mount)\nBest for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.\n# Ensure you are using the virtual environment\nsource .venv/bin/activate\n\npython src/czi_ingest.py \\\n    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \\\n    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \\\n    --channels 0 1 2 \\\n    --grayscale\n\n\n3.3 Key Parameters\n\n\n\n\n\n\n\nFlag\nDescription\n\n\n\n\n--root\nDeepest root directory to scan for .czi files\n\n\n--out\nTarget directory for images, labels, and data.yaml\n\n\n--channels\nIndices of fluorescence channels to use for R, G, B\n\n\n--grayscale\nForces output to neutral grayscale instead of red (critical for manual Roboflow annotation)\n\n\n--split\nTrain/Val ratio (e.g. 0.8 = 80% training data)\n\n\n--dry-run\nPreview the file list without writing to disk"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#resolution-scaling",
+    "href": "tutorials/ingestion.html#resolution-scaling",
+    "title": "Ingestion Guide",
+    "section": "4 📐 Resolution & Scaling",
+    "text": "4 📐 Resolution & Scaling\nThe pipeline automatically extracts the PhysicalSizeX metadata from the CZI. This is crucial for: 1. Scaling measurements in the final analysis. 2. Filtering debris based on physical area (pollen grains are typically 10–100µm).\nCurrently, the Colorado scans processed show a resolution of ~0.88 µm/px."
+  }
+]
