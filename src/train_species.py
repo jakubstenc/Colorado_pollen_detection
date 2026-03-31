@@ -3,8 +3,8 @@ import argparse
 from ultralytics import YOLO
 from datetime import datetime
 
-MODEL_DIR = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/species_classifier"
-GENERAL_MODEL_LATEST = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt"
+MODEL_DIR = os.getenv("MODEL_DIR", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/species_classifier")
+GENERAL_MODEL_LATEST = os.getenv("GENERAL_MODEL_LATEST", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt")
 
 def train_species(dataset_yaml):
     os.makedirs(MODEL_DIR, exist_ok=True)

@@ -7,11 +7,11 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
-# Define Config Paths
-STAGED_AREA = "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/"
-STAGED_NEGATIVES = "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives"
-DATASET_ROOT = "/tmp/general_pollen_dataset"
-MODEL_DIR = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen"
+# Define Config Paths (with ENV fallbacks for containerized runs)
+STAGED_AREA = os.getenv("STAGED_AREA", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/")
+STAGED_NEGATIVES = os.getenv("STAGED_NEGATIVES", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives")
+DATASET_ROOT = os.getenv("DATASET_ROOT", "/tmp/general_pollen_dataset")
+MODEL_DIR = os.getenv("MODEL_DIR", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen")
 
 def prep_dataset():
     print("🧹 Preparing Dataset for General Pollen Detection...")

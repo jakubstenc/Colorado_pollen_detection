@@ -7,8 +7,8 @@ RUN apt-get update && apt-get install -y wget curl && \
     wget -qO- https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz | tar -xz -C /usr/local/bin/ s5cmd && \
     pip install --no-cache-dir awscli
 
-# Copy training script
-COPY train_general.py ./
+# Copy all new source code
+COPY src/ /scripts/
 
 # Fix permissions
 RUN chown -R 1000:1000 /app && \

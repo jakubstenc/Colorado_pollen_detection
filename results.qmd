@@ -8,9 +8,9 @@ description: "Visual overview of processed tiles and model outputs"
 Below are examples of 640x640 tiles extracted from the large-scale scans.
 
 ::: {layout-ncol=2}
-![Ran_ado Sample 1](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000000_y000000.jpg)
+![Ran_ado Sample 1](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x003584_y000000.jpg)
 
-![Ran_ado Sample 2](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x000512_y000512.jpg)
+![Ran_ado Sample 2](./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x011264_y001024.jpg)
 :::
 
 ## 📊 Dataset Stats
