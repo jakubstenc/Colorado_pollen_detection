@@ -38,7 +38,7 @@ spec:
               python3 /scripts/train_general.py
               
               echo "Uploading best weights to S3..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/models/general_pollen/ "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/models/general_pollen/*" "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/"
               
               echo "Generating Email notification..."
               python3 /notify/notify.py --type training --job_name "YOLO General Pollen Model" --results /app/models/general_pollen/latest.pt
