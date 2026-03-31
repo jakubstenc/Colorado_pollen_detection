@@ -1,118 +1,147 @@
 #!/usr/bin/env python3
-"""
-pseudo_label.py — Generate YOLO labels for existing tiles using a pretrained model.
-"""
-
-import argparse
-import json
 import os
-import ssl
-import urllib.request
+import shutil
+import zipfile
+import argparse
 from pathlib import Path
-
-import boto3
-import cv2
-import numpy as np
-from botocore.client import Config
 from ultralytics import YOLO
 
-def setup_s3():
-    s3_endpoint  = os.environ.get("S3_ENDPOINT", "https://s3.cl4.du.cesnet.cz")
-    s3_bucket    = os.environ.get("S3_BUCKET")
-    access_key   = os.environ.get("AWS_ACCESS_KEY_ID")
-    secret_key   = os.environ.get("AWS_SECRET_ACCESS_KEY")
-
-    if not all([s3_bucket, access_key, secret_key]):
-        return None, None
-
-    resource = boto3.resource(
-        "s3",
-        endpoint_url=s3_endpoint,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}),
-    )
-    return resource, s3_bucket
-
-def download_model_s3(s3_resource, bucket, s3_key, local_path):
-    """Download model from S3 if it doesn't exist locally."""
-    if os.path.exists(local_path):
-        print(f"✅ Model already exists at {local_path}")
-        return
-    print(f"⬇️ Downloading model from s3://{bucket}/{s3_key}...")
-    s3_resource.Bucket(bucket).download_file(s3_key, local_path)
-
-def load_manifest(manifest_path: str):
-    if not os.path.exists(manifest_path):
-        return []
-    with open(manifest_path, 'r') as f:
-        return json.load(f)
-
-def label_tiles(image_dir: str, manifest: list, model_path: str,
-                out_dir: str, conf: float = 0.25):
-    """Run inference on tiles and save YOLO txt labels."""
-    print(f"🤖 Loading model: {model_path}")
-    model = YOLO(model_path)
+def convert_bbox_to_polygon(bbox_line):
+    """
+    Takes a YOLO format string: "class x1 y1 x2 y2 ..."
+    If it's a bounding box (5 parts), converts to 4-point polygon.
+    If it's already a polygon (>5 parts), just forces class to 0.
+    """
+    parts = bbox_line.strip().split()
+    if len(parts) < 5:
+        return "" # invalid
     
-    img_root = Path(image_dir)
-    out_root = Path(out_dir)
-    out_root.mkdir(parents=True, exist_ok=True)
-    
-    # Map manifest for quick lookup
-    manifest_map = {m['tile_id']: m for m in manifest}
-    
-    # Process images in directory
-    images = list(img_root.glob("*.jpg"))
-    print(f"🔍 Found {len(images)} images to label.")
-    
-    for img_path in images:
-        tile_id = img_path.stem
-        meta = manifest_map.get(tile_id, {})
-        class_id = meta.get('class_id', 0)
-        scale_um = meta.get('um_per_px_x')
-        
-        results = model(str(img_path), conf=conf, verbose=False)
-        lines = []
-        
-        if results[0].masks:
-            H, W = results[0].orig_shape
-            for mask_xy in results[0].masks.xy:
-                # Optional: Filter by size here if scale_um is known
-                # norm coords
-                norm = mask_xy.copy().astype(float)
-                norm[:, 0] /= W
-                norm[:, 1] /= H
-                coords_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in norm)
-                lines.append(f"{class_id} {coords_str}")
-        
-        label_file = out_root / f"{tile_id}.txt"
-        label_file.write_text("\n".join(lines))
-        print(f"   ✅ {tile_id} → {len(lines)} annotations", end='\r')
+    # Force class 0 (pollen)
+    parts[0] = "0"
 
-    print(f"\n✨ Completed labeling for {len(images)} files.")
+    if len(parts) == 5:
+        # It's a bounding box: xc, yc, w, h
+        try:
+            xc, yc, w, h = map(float, parts[1:5])
+            
+            # Area/Size filter: Reject massive ghost boxes (hallucinations)
+            # A pollen grain should not consume more than 25% of the image width/height.
+            if w > 0.25 or h > 0.25:
+                return ""
+            
+            x_min = max(0.0, xc - w / 2)
+            x_max = min(1.0, xc + w / 2)
+            y_min = max(0.0, yc - h / 2)
+            y_max = min(1.0, yc + h / 2)
+            # 4 corners of a rectangle
+            return f"0 {x_min:.6f} {y_min:.6f} {x_max:.6f} {y_min:.6f} {x_max:.6f} {y_max:.6f} {x_min:.6f} {y_max:.6f}"
+        except:
+            return ""
+    
+    # It's already a polygon or has custom extra info
+    return " ".join(parts)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--images", required=True, help="Directory with tile images")
-    parser.add_argument("--manifest", required=True, help="Path to tile_manifest.json")
-    parser.add_argument("--model", required=True, help="YOLO model (.pt) or S3 key")
-    parser.add_argument("--out", required=True, help="Labels output directory")
-    parser.add_argument("--conf", type=float, default=0.25)
+    parser.add_argument("--zip", required=True, help="Path to input dataset zip")
+    parser.add_argument("--model", required=True, help="Path to best.pt")
+    parser.add_argument("--outdir", required=True, help="Path to output directory to zip")
+    parser.add_argument("--filter-positives", action="store_true", help="Only map images that yield YOLO detections")
+    parser.add_argument("--max-images", type=int, default=0, help="Halt mapping after hitting this many tracked tiles")
     args = parser.parse_args()
-    
-    model_path = args.model
-    if model_path.startswith("Ostatni/"):
-        s3, bucket = setup_s3()
-        if s3:
-            local_name = os.path.basename(model_path)
-            download_model_s3(s3, bucket, model_path, local_name)
-            model_path = local_name
-        else:
-            print("❌ S3 setup failed. Check credentials.")
-            return
 
-    manifest = load_manifest(args.manifest)
-    label_tiles(args.images, manifest, model_path, args.out, args.conf)
+    work_dir = Path("/tmp/pseudo_label_work")
+    output_dir = Path(args.outdir)
+
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+    work_dir.mkdir(parents=True)
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True)
+
+    print(f"📦 Extracting dataset from {args.zip}...")
+    with zipfile.ZipFile(args.zip, 'r') as zip_ref:
+        zip_ref.extractall(work_dir)
+
+    print("🤖 Loading model...")
+    model = YOLO(args.model)
+
+    images_dir = next(work_dir.glob('**/images'), None)
+    if not images_dir or not images_dir.exists():
+        print("❌ Could not find images directory in the zip.")
+        return
+
+    print("🔍 Running inference and generating YOLO labels...")
+    model.predict(
+        source=str(images_dir),
+        save=False,
+        save_txt=True,
+        save_conf=False,
+        conf=0.25, # standard confidence for the newly trained v3 model
+        project=str(work_dir),
+        name="predict_out"
+    )
+
+    pred_labels_dir = work_dir / "predict_out" / "labels"
+    if not pred_labels_dir.exists():
+        print("⚠️ No labels were generated. Creating empty directory.")
+        pred_labels_dir.mkdir(parents=True, exist_ok=True)
+
+    (output_dir / "images").mkdir(parents=True)
+    (output_dir / "labels").mkdir(parents=True)
+
+    # 1/2) Consolidate processing: Only write output images relative to predicted txts, matching the positive filter logic
+    print("✂️ Converting bounding box predictions to 4-point segment polygons (class 0)...")
+    saved_count = 0
+    
+    for label_file in pred_labels_dir.glob("*.txt"):
+        if args.max_images > 0 and saved_count >= args.max_images:
+            break
+            
+        if label_file.is_file():
+            original_lines = label_file.read_text().strip().split("\n")
+            new_lines = []
+            for line in original_lines:
+                if not line.strip():
+                    continue
+                poly_line = convert_bbox_to_polygon(line)
+                if poly_line:
+                    new_lines.append(poly_line)
+            
+            if args.filter_positives and not new_lines:
+                continue
+                
+            matched_imgs = list(images_dir.glob(label_file.stem + ".*"))
+            if matched_imgs:
+                img_file = matched_imgs[0]
+                shutil.copy(img_file, output_dir / "images" / img_file.name)
+                (output_dir / "labels" / label_file.name).write_text("\n".join(new_lines))
+                saved_count += 1
+
+    # If NOT filtering positives, sweep any remaining untouched empty tiles to fulfill capacity
+    if not args.filter_positives:
+        for img in images_dir.glob("*"):
+            if args.max_images > 0 and saved_count >= args.max_images:
+                break
+            if img.is_file():
+                dest_img = output_dir / "images" / img.name
+                if not dest_img.exists():
+                    shutil.copy(img, dest_img)
+                    (output_dir / "labels" / (img.stem + ".txt")).write_text("")
+                    saved_count += 1
+
+    # 3) Build a new simple data.yaml for Roboflow (unified "pollen" class)
+    yaml_content = (
+        f"path: .\n"
+        f"train: images\n"
+        f"val: images\n"
+        f"nc: 1\n"
+        f"names: ['pollen']\n"
+    )
+    (output_dir / "data.yaml").write_text(yaml_content)
+
+    print(f"✅ Prepared dataset in {output_dir}")
 
 if __name__ == "__main__":
     main()

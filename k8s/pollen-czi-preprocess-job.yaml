@@ -36,10 +36,21 @@ spec:
             - -c
             - |
               aws --endpoint-url "$S3_ENDPOINT" s3 sync \
-                "s3://$S3_BUCKET/Ostatni/Colorado_pollen/Species/" \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/" \
                 /mnt/czi_data/ \
                 --exclude "*" --include "*.czi" \
                 --no-verify-ssl
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
           env:
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
@@ -68,7 +79,7 @@ spec:
             - --root
             - /mnt/czi_data
             - --out
-            - /tmp/pollen_czi_v1
+            - /tmp/pollen_czi_color
             - --channels
             - "0"
             - "1"
@@ -123,4 +134,4 @@ spec:
           emptyDir:
             sizeLimit: "50Gi"
       restartPolicy: Never
-  backoffLimit: 0
+  backoffLimit: 1

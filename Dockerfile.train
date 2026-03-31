@@ -1,0 +1,19 @@
+FROM ultralytics/ultralytics:latest
+
+WORKDIR /app
+
+# System dependencies
+RUN apt-get update && apt-get install -y wget curl && \
+    wget -qO- https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz | tar -xz -C /usr/local/bin/ s5cmd && \
+    pip install --no-cache-dir awscli
+
+# Copy training script
+COPY train_general.py ./
+
+# Fix permissions
+RUN chown -R 1000:1000 /app && \
+    mkdir -p /ultralytics/runs && \
+    chown -R 1000:1000 /ultralytics
+
+USER 1000
+CMD ["sh"]

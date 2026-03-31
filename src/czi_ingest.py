@@ -82,11 +82,30 @@ def normalize_to_uint8(arr: np.ndarray) -> np.ndarray:
     return out
 
 
-def get_mip_rgb(img, channels: list[int]) -> np.ndarray:
+def get_mip_rgb(img, channels: list[int], grayscale: bool = False) -> np.ndarray:
     """
     Compute Maximum Intensity Projection across Z for the given channels.
     Returns uint8 RGB array (H, W, 3).
     """
+    # ── Check if the image is native RGB (Samples per pixel == 3) ──
+    if 'S' in img.dims.order and getattr(img.dims, 'S', 1) == 3:
+        # Extract native RGB directly. Brightfield usually has Z=1.
+        rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
+        
+        if rgb.dtype != np.uint8:
+            if rgb.max() > 255:
+                rgb = (rgb / 256).astype(np.uint8)
+            else:
+                rgb = rgb.astype(np.uint8)
+                
+        if grayscale:
+            import cv2
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            rgb = np.stack([gray, gray, gray], axis=-1)
+            
+        return rgb
+
+    # ── Fallback to Fluorescence multi-channel extraction (CZYX) ──
     dask_czyx = img.get_image_dask_data("CZYX", S=0)   # (C, Z, H, W)
     num_c = dask_czyx.shape[0]
     channels_data = []
@@ -98,13 +117,25 @@ def get_mip_rgb(img, channels: list[int]) -> np.ndarray:
         mip = dask_czyx[c].max(axis=0).compute()       # (H, W) — Z collapsed
         channels_data.append(mip)
 
-    # Pad to 3 channels if fewer than 3 were extracted
-    while len(channels_data) < 3:
-        if len(channels_data) > 0:
-            channels_data.append(np.zeros_like(channels_data[0]))
-        else:
-            # Fallback for empty image
-            channels_data.append(np.zeros((1024, 1024), dtype=np.uint8))
+    if grayscale and len(channels_data) > 0:
+        # Combine all active channels by taking maximum intensity across them
+        combined = np.max(np.stack(channels_data, axis=-1), axis=-1)
+        channels_data = [combined, combined, combined]
+    else:
+        # Pad to 3 channels if fewer than 3 were extracted
+        while len(channels_data) < 3:
+            if len(channels_data) > 0:
+                channels_data.append(np.zeros_like(channels_data[0]))
+            else:
+                # Fallback for empty image
+                channels_data.append(np.zeros((1024, 1024), dtype=np.uint8))
+
+        # If only one channel actually has meaningful data, duplicate it to make
+        # a proper grayscale image instead of a pure red image.
+        is_single_channel = (len(target_channels) == 1)
+        if is_single_channel:
+            active_ch = channels_data[0]
+            channels_data = [active_ch, active_ch, active_ch]
 
     rgb = np.stack(channels_data, axis=-1)              # (H, W, 3)
     return normalize_to_uint8(rgb)
@@ -188,7 +219,7 @@ def pseudo_label_tile(tile: np.ndarray, model,
     if model is None:
         return []
     H, W = tile.shape[:2]
-    results = model(tile, verbose=False, conf=conf)
+    results = model(tile, verbose=False, conf=conf, retina_masks=True)
     lines = []
     if results[0].masks is None:
         return lines
@@ -273,6 +304,8 @@ def main() -> None:
                     help="CZI channel indices to map to RGB (default: 0 1 2)")
     ap.add_argument("--z",        default="mip", choices=["mip"],
                     help="Z-reduction method (only 'mip' supported)")
+    ap.add_argument("--grayscale", action="store_true",
+                    help="Combine fluorescence channels into a single grayscale representation")
     ap.add_argument("--overlap",  type=float, default=DEFAULT_OVERLAP,
                     help="Tile overlap fraction (default 0.20)")
     ap.add_argument("--split",    type=float, default=DEFAULT_SPLIT_RATIO,
@@ -308,8 +341,10 @@ def main() -> None:
     all_czis = sorted(Path(args.root).rglob("*.czi"))
     print(f"🔍 Found {len(all_czis)} .czi files\n")
 
+    import csv
     manifest = []
     tile_counts = {"train": 0, "val": 0}
+    all_czi_summaries = []
     t0 = time.time()
 
     for czi_path in all_czis:
@@ -334,8 +369,15 @@ def main() -> None:
             print(f"     Scale: {scale_um_px} µm/px  |  Dims: {img.dims}  |  Shape: {img.shape}")
 
             print("     Computing Max-Z projection…", end="", flush=True)
-            rgb = get_mip_rgb(img, args.channels)
+            rgb = get_mip_rgb(img, args.channels, grayscale=args.grayscale)
             print(f" ✓  ({rgb.shape[0]}×{rgb.shape[1]} px)")
+
+            # Prepare overview image (resize longest edge to 2000px)
+            H_orig, W_orig = rgb.shape[:2]
+            scale_factor = min(2000.0 / H_orig, 2000.0 / W_orig)
+            new_W, new_H = int(W_orig * scale_factor), int(H_orig * scale_factor)
+            overview_rgb = cv2.resize(rgb, (new_W, new_H))
+            overview_bgr = cv2.cvtColor(overview_rgb, cv2.COLOR_RGB2BGR)
 
             n_tiles = 0
             for tile, tx, ty in tile_image(rgb, overlap=args.overlap):
@@ -353,6 +395,25 @@ def main() -> None:
                     tile, yolo_model, class_id, scale_um_px, conf=args.conf
                 )
                 lbl_path.write_text("\n".join(annotation_lines))
+
+                # Process annotations for overview & CSV
+                for line in annotation_lines:
+                    parts = line.strip().split()
+                    pts_norm = np.array(parts[1:], dtype=float).reshape(-1, 2)
+                    pts_tile_px = pts_norm * [tile.shape[1], tile.shape[0]]
+                    
+                    # Log for CSV summary
+                    area_um2 = cv2.contourArea(pts_tile_px.astype(np.float32)) * (scale_um_px**2) if scale_um_px else None
+                    all_czi_summaries.append({
+                        "CZI_File": czi_path.name,
+                        "Species": species,
+                        "Area_um2": round(area_um2, 2) if area_um2 else None
+                    })
+                    
+                    # Draw on overview
+                    pts_orig_px = pts_tile_px + [tx, ty]
+                    pts_overview_px = (pts_orig_px * scale_factor).astype(np.int32).reshape((-1, 1, 2))
+                    cv2.polylines(overview_bgr, [pts_overview_px], True, (0, 255, 0), 2)
 
                 manifest.append({
                     "tile_id":       stem,
@@ -373,7 +434,10 @@ def main() -> None:
                 tile_counts[split] += 1
                 n_tiles += 1
 
-            print(f"     ✅ {n_tiles} tiles extracted.")
+            # Save full image overview
+            overview_path = out_dir / f"overview_{czi_path.stem}.jpg"
+            cv2.imwrite(str(overview_path), overview_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            print(f"     ✅ {n_tiles} tiles extracted. Overview saved to {overview_path.name}")
 
         except Exception as exc:  # noqa: BLE001
             print(f"  ❌ Failed: {exc}")
@@ -396,9 +460,19 @@ def main() -> None:
     )
     (out_dir / "data.yaml").write_text(yaml_content)
 
-    # ── Write manifest ────────────────────────────────────────────────────
+    # ── Write manifest & summary table ────────────────────────────────────
     manifest_path = out_dir / "tile_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
+    
+    csv_path = out_dir / "summary_results.csv"
+    if all_czi_summaries:
+        keys = all_czi_summaries[0].keys()
+        with open(csv_path, 'w', newline='') as f:
+            dict_writer = csv.DictWriter(f, fieldnames=keys)
+            dict_writer.writeheader()
+            dict_writer.writerows(all_czi_summaries)
+    else:
+        csv_path.write_text("CZI_File,Species,Area_um2\n") # Empty structure
 
     elapsed = time.time() - t0
     total = sum(tile_counts.values())
@@ -407,6 +481,7 @@ def main() -> None:
     print(f"   {tile_counts['train']} train tiles  |  {tile_counts['val']} val tiles  |  {total} total")
     print(f"   data.yaml     → {out_dir / 'data.yaml'}")
     print(f"   tile_manifest → {manifest_path}")
+    print(f"   summary csv   → {csv_path}")
 
     # ── Optional S3 upload ────────────────────────────────────────────────
     if args.upload and boto3 is not None:
@@ -416,7 +491,7 @@ def main() -> None:
         s3_resource, bucket = setup_s3()
         if s3_resource:
             dataset_name = out_dir.name
-            s3_key = f"Ostatni/Colorado_pollen_detection/staging_area/{dataset_name}.zip"
+            s3_key = f"PEG/Colorado/staging_area/{dataset_name}.zip"
             print(f"☁️  Uploading to s3://{bucket}/{s3_key}…")
             upload_zip_to_s3(s3_resource, bucket, zip_path, s3_key)
         else:

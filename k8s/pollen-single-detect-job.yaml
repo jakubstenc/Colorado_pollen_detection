@@ -1,0 +1,88 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-single-detect
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: czi-preprocessor
+          image: ttl.sh/pollen-czi-anti:24h
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running CZI Ingestion natively on mounted detection storage..."
+              python3 /home/meow/Documents/Antigravity/Colorado_pollen_detection/src/czi_ingest.py \
+                --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/detect_images \
+                --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/detection_results \
+                --model /home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt \
+                --channels 0 1 2 --z mip --overlap 0.20
+              
+              echo "Sending notification email..."
+              python3 /scripts/notify.py --type detection --job_name "Routine CZI Detection"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "32Gi"
+              cpu: "4"
+            requests:
+              memory: "16Gi"
+              cpu: "2"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /scripts
+              name: scripts-vol
+            - mountPath: /home/meow/cesnet_cloud/bucket
+              name: s3-bucket-mount
+            - mountPath: /home/meow/Documents/Antigravity/Colorado_pollen_detection
+              name: project-mount
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+        - name: scripts-vol
+          configMap:
+            name: notify-script
+        - name: s3-bucket-mount
+          hostPath:
+            path: /home/meow/cesnet_cloud/bucket
+        - name: project-mount
+          hostPath:
+            path: /home/meow/Documents/Antigravity/Colorado_pollen_detection
+      restartPolicy: Never
+  backoffLimit: 1

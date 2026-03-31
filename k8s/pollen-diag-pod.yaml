@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pollen-diag-pod
+  namespace: stenc-ns
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containers:
+    - name: aws-cli
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      image: amazon/aws-cli:latest
+      imagePullPolicy: Always
+      command:
+        - sh
+        - -c
+        - |
+          echo "Diagnostic pod started"
+          sleep 3600
+      env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: s3-credentials
+              key: access-key
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: s3-credentials
+              key: secret-key
+      resources:
+        limits:
+          memory: "1Gi"
+          cpu: "1"
+        requests:
+          memory: "512Mi"
+          cpu: "0.5"
+  restartPolicy: Never

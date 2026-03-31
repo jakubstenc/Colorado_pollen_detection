@@ -31,14 +31,24 @@ The script expects a directory structure where species codes are embedded in fol
 
 ## 🛠️ Running the Ingest
 
-To process all files for a specific species:
+### Option A: Kubernetes Cluster (S3 Upload)
+Best for large batches. This utilizes the cluster's RAM to process all files and uploads a zipped `.zip` file archive to S3.
+```bash
+python k8s/deploy_czi.sh
+```
+
+### Option B: Local Execution (Direct to Cloud Mount)
+Best for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.
 
 ```bash
+# Ensure you are using the virtual environment
+source .venv/bin/activate
+
 python src/czi_ingest.py \
-    --root /mnt/bucket/PEG/Colorado/Source/Ran_ado/ \
-    --out ./dataset_ran_ado \
+    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \
+    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \
     --channels 0 1 2 \
-    --split 0.8
+    --grayscale
 ```
 
 ### Key Parameters
@@ -48,6 +58,7 @@ python src/czi_ingest.py \
 | `--root` | Deepest root directory to scan for .czi files |
 | `--out` | Target directory for images, labels, and data.yaml |
 | `--channels` | Indices of fluorescence channels to use for R, G, B |
+| `--grayscale` | Forces output to neutral grayscale instead of red (critical for manual Roboflow annotation) |
 | `--split` | Train/Val ratio (e.g. 0.8 = 80% training data) |
 | `--dry-run` | Preview the file list without writing to disk |
 
