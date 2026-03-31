@@ -43,9 +43,7 @@ def prep_dataset():
     # 2. Gather Negatives
     if os.path.exists(STAGED_NEGATIVES):
         for img in glob.glob(os.path.join(STAGED_NEGATIVES, "**", "*.jpg"), recursive=True):
-            lbl = img.replace("images", "labels").replace(".jpg", ".txt")
-            if os.path.exists(lbl):
-                pairs.append((img, lbl, False))
+            pairs.append((img, None, False))
                 
     if not pairs:
         print("❌ No images found in staging areas!")
@@ -62,22 +60,21 @@ def prep_dataset():
     for split_pairs, split_name in [(train_pairs, 'train'), (val_pairs, 'val')]:
         for img, lbl, is_pos in split_pairs:
             base = os.path.basename(img)
-            lbl_base = os.path.basename(lbl)
+            name_only = os.path.splitext(base)[0]
+            lbl_dest = os.path.join(DATASET_ROOT, split_name, 'labels', f"{name_only}.txt")
             
             shutil.copy(img, os.path.join(DATASET_ROOT, split_name, 'images', base))
             
             # For General Pollen, all positive classes map to 0 ("pollen").
-            with open(lbl, 'r') as f:
-                lines = f.readlines()
-            
-            with open(os.path.join(DATASET_ROOT, split_name, 'labels', lbl_base), 'w') as f_out:
-                if is_pos:
-                    for line in lines:
-                        parts = line.strip().split()
-                        if len(parts) >= 5:
-                            parts[0] = "0" # Remap any species class to unified 0
-                            f_out.write(" ".join(parts) + "\n")
-                # Negatives can just have empty or ignored contents.
+            with open(lbl_dest, 'w') as f_out:
+                if is_pos and lbl and os.path.exists(lbl):
+                    with open(lbl, 'r') as f_in:
+                        for line in f_in:
+                            parts = line.strip().split()
+                            if len(parts) >= 5:
+                                parts[0] = "0" # Remap any species class to unified 0
+                                f_out.write(" ".join(parts) + "\n")
+                # If negative, we write nothing, creating an empty .txt file for Ultralytics
 
     # Write unified data.yaml
     data_cfg = {
@@ -98,15 +95,16 @@ def train_general():
     os.makedirs(MODEL_DIR, exist_ok=True)
     run_name = f"general_pollen_{datetime.now().strftime('%Y%m%d_%H%M')}"
     
-    print(f"🚀 Training {run_name} on General Pollen...")
-    model = YOLO("yolov8n.pt") # Transfer from base nano or specific general weights
+    print(f"🚀 Training {run_name} on General Pollen (Segmentation)...")
+    # Upgrade to Segmentation Model (Large)
+    model = YOLO("yolov8l-seg.pt")
     
     results = model.train(
         data=os.path.join(DATASET_ROOT, 'data.yaml'),
         epochs=500,
         patience=0,
         close_mosaic=20,
-        batch=64,
+        batch=32, # Reduced to 32 to fit the Large Segmentation model in VRAM safely
         imgsz=640,
         project=MODEL_DIR,
         name=run_name,
