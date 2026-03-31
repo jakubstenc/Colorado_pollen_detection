@@ -41,14 +41,16 @@ spec:
               aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/models/general_pollen/ "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl
               
               echo "Generating Email notification..."
-              python3 /scripts/notify.py --type training --job_name "YOLO General Pollen Model" --results /app/models/general_pollen/latest.pt
+              python3 /notify/notify.py --type training --job_name "YOLO General Pollen Model" --results /app/models/general_pollen/latest.pt
           resources:
             limits:
               memory: "32Gi"
               cpu: "8"
+              nvidia.com/gpu: "1"
             requests:
               memory: "16Gi"
               cpu: "4"
+              nvidia.com/gpu: "1"
           env:
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
@@ -72,7 +74,7 @@ spec:
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
-            - mountPath: /scripts
+            - mountPath: /notify
               name: scripts-vol
   volumes:
     - name: dshm
