@@ -472,7 +472,7 @@ def main() -> None:
                     "um_per_px_y":   scale_um_px,
                     "z_method":      args.z,
                     "channels_used": args.channels,
-                    "n_annotations": len(annotation_lines),
+                    "n_annotations": len(annotations),
                     "split":         split,
                     "qr_code":       qr,
                 })
@@ -541,7 +541,7 @@ def main() -> None:
         s3_resource, bucket = setup_s3()
         if s3_resource:
             zip_path = f"{out_dir}.zip"
-            
+            dataset_name = out_dir.name
             s3_key = f"PEG/Colorado/Detected/{dataset_name}.zip"
             print(f"☁️  Uploading to s3://{bucket}/{s3_key}…")
             upload_zip_to_s3(s3_resource, bucket, zip_path, s3_key)

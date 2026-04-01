@@ -1,0 +1,139 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-detect-two
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: s3-sync
+          image: amazon/aws-cli:latest
+          command:
+            - sh
+            - -c
+            - |
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/20251031_066_pol_pro_Ran_ado_2025_4_Colorado2025.czi" \
+                /mnt/czi_data/20251031_066_pol_pro_Ran_ado_2025_4_Colorado2025.czi \
+                --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/20251031_071_pol_pro_Ran_ado_2025_9_Colorado2025.czi" \
+                /mnt/czi_data/20251031_071_pol_pro_Ran_ado_2025_9_Colorado2025.czi \
+                --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" \
+                /mnt/model/best.pt \
+                --no-verify-ssl
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      containers:
+        - name: czi-preprocessor
+          image: ttl.sh/pollen-czi-anti9:24h
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running CZI Ingestion with dual verification inference..."
+              python3 /app/czi_ingest.py \
+                --root /mnt/czi_data \
+                --out /app/dual_detection_results \
+                --model /mnt/model/best.pt \
+                --channels 0 1 2 --z mip --overlap 0.20 \
+                --upload
+              
+              echo "Sending notification email..."
+              python3 /scripts/notify.py --type detection --job_name "Dual CZI Model Verification"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "32Gi"
+              cpu: "4"
+            requests:
+              memory: "16Gi"
+              cpu: "2"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /scripts
+              name: scripts-vol
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+        - name: scripts-vol
+          configMap:
+            name: notify-script
+        - name: scratch
+          emptyDir:
+            sizeLimit: "50Gi"
+        - name: model-vol
+          emptyDir:
+            sizeLimit: "1Gi"
+      restartPolicy: Never
+  backoffLimit: 1
