@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 
 src_dir = Path("dataset_general_v1")
-dst_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/staging_area/dataset_general_v1")
+dst_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/dataset_general_v1")
 
 if dst_dir.exists():
     print(f"Destination {dst_dir} already exists. Cleaning up...")

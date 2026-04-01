@@ -51,4 +51,6 @@ This will generate 20 random samples in `./verification_viz` with the segmentati
 
 Full datasets and models are stored on CESNET S3:
 - **Bucket**: `bucket`
-- **Path**: `Ostatni/Colorado_pollen_detection/staging_area/`
+- **Datasets**: `PEG/Colorado/Staged_area/`
+- **Detections**: `PEG/Colorado/Detected/`
+- **Models**: `PEG/Colorado/trained_models/`

@@ -239,7 +239,7 @@ def main():
     s3_resource, bucket = setup_s3()
     if s3_resource:
         dataset_name = out_dir.name
-        s3_key = f"PEG/Colorado/staging_area/{dataset_name}.zip"
+        s3_key = f"PEG/Colorado/Staged_area/{dataset_name}.zip"
         print(f"☁️  Uploading to s3://{bucket}/{s3_key}…")
         upload_zip_to_s3(s3_resource, bucket, zip_path, s3_key)
     else:

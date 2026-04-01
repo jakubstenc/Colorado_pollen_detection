@@ -1,0 +1,94 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-test-infer
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: s3-sync
+          image: amazon/aws-cli:latest
+          command:
+            - sh
+            - -c
+            - |
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/staging_area/test_x009216_y009216.jpg" /mnt/czi_data/test.jpg --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/general_pollen_20260331_1506/weights/best.pt" /mnt/model/best.pt --no-verify-ssl
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      containers:
+        - name: czi-preprocessor
+          image: ttl.sh/pollen-czi-anti3:24h
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              python3 -c "
+              from ultralytics import YOLO
+              import cv2
+              print('Loading model...')
+              model = YOLO('/mnt/model/best.pt')
+              print('Reading image...')
+              img = cv2.imread('/mnt/czi_data/test.jpg')
+              print('Running inference at conf=0.01...')
+              results = model(img, conf=0.01, retina_masks=True)
+              if results[0].boxes:
+                  for box in results[0].boxes:
+                      print('Detected object with conf: {}'.format(float(box.conf[0])))
+              else:
+                  print('NO objects detected even at 0.01 conf.')
+              "
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "8Gi"
+              cpu: "2"
+            requests:
+              memory: "4Gi"
+              cpu: "1"
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      volumes:
+        - name: scratch
+          emptyDir: {}
+        - name: model-vol
+          emptyDir: {}
+      restartPolicy: Never
+  backoffLimit: 1

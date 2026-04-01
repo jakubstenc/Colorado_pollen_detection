@@ -29,7 +29,7 @@ zip_path = "sample_tiles/single_detection_results.zip"
 extract_dir = "sample_tiles/single_detection_results"
 
 # 1. Download the zip from S3
-s3_key = "PEG/Colorado/staging_area/single_detection_results.zip"
+s3_key = "PEG/Colorado/Detected/single_detection_results.zip"
 try:
     print(f"Downloading {s3_key}...")
     bucket.download_file(s3_key, zip_path)
