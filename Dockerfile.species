@@ -1,0 +1,29 @@
+FROM ultralytics/ultralytics:latest
+
+WORKDIR /app
+
+# System dependencies and Quarto
+RUN apt-get update && apt-get install -y wget curl awscli && \
+    wget -qO- https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz | tar -xz -C /usr/local/bin/ s5cmd && \
+    wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.551/quarto-1.4.551-linux-amd64.deb && \
+    dpkg -i quarto-1.4.551-linux-amd64.deb && \
+    rm quarto-1.4.551-linux-amd64.deb && \
+    pip install --no-cache-dir boto3 pandas aicsimageio "imagecodecs>=2023.1.23"
+
+# Install Chromium strictly for Quarto PDF generation via typst/chromium headless
+RUN apt-get update && apt-get install -y chromium xvfb
+
+# Copy all source
+COPY src/ /app/
+
+# Environment mapping
+ENV QT_QPA_PLATFORM=offscreen
+ENV QUARTO_PRINT=1
+
+# Fix permissions
+RUN chown -R 1000:1000 /app && \
+    mkdir -p /ultralytics/runs && \
+    chown -R 1000:1000 /ultralytics
+
+USER 1000
+CMD ["sh"]
