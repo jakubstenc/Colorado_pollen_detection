@@ -60,10 +60,10 @@ except ImportError:
 TILE_SIZE           = 640
 DEFAULT_OVERLAP     = 0.20   # 20 % overlap between tiles
 DEFAULT_SPLIT_RATIO = 0.80   # 80 % train / 20 % val
-CONF_THRESHOLD      = 0.35   # Minimum confidence for pseudo-labels
+CONF_THRESHOLD      = 0.10   # Minimum confidence for pseudo-labels
 # Biologically reasonable pollen grain area in µm² (filters debris & dust)
-MIN_POLLEN_AREA_UM2 = 50.0
-MAX_POLLEN_AREA_UM2 = 8000.0
+MIN_POLLEN_AREA_UM2 = 0.0
+MAX_POLLEN_AREA_UM2 = 9999999.0
 
 
 # ── Image utilities ────────────────────────────────────────────────────────
@@ -222,6 +222,27 @@ def pseudo_label_tile(tile: np.ndarray, model,
     results = model(tile, verbose=False, conf=conf, retina_masks=True)
     lines = []
     if results[0].masks is None:
+        if results[0].boxes is None:
+            return lines
+            
+        for box in results[0].boxes:
+            c_conf = float(box.conf[0])
+            if c_conf < conf:
+                continue
+                
+            # Physical size filter based on Bounding Box Area
+            if scale_um_px is not None:
+                w_px = float(box.xywh[0][2])
+                h_px = float(box.xywh[0][3])
+                area_px = w_px * h_px
+                area_um2 = area_px * (scale_um_px ** 2)
+                if not (MIN_POLLEN_AREA_UM2 < area_um2 < MAX_POLLEN_AREA_UM2):
+                    continue
+                    
+            # Convert normalized bounding box [x1, y1, x2, y2] into a polygon [x1, y1, x2, y1, x2, y2, x1, y2]
+            x1, y1, x2, y2 = box.xyxyn[0].tolist()
+            poly_str = f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} {x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}"
+            lines.append(f"{class_id} {poly_str}")
         return lines
 
     for mask_xy in results[0].masks.xy:
@@ -490,8 +511,9 @@ def main() -> None:
         shutil.make_archive(str(out_dir), "zip", str(out_dir))
         s3_resource, bucket = setup_s3()
         if s3_resource:
-            dataset_name = out_dir.name
-            s3_key = f"PEG/Colorado/staging_area/{dataset_name}.zip"
+            zip_path = f"{out_dir}.zip"
+            
+            s3_key = f"PEG/Colorado/Detected/{dataset_name}.zip"
             print(f"☁️  Uploading to s3://{bucket}/{s3_key}…")
             upload_zip_to_s3(s3_resource, bucket, zip_path, s3_key)
         else:
