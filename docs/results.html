@@ -332,6 +332,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#model-performance" id="toc-model-performance" class="nav-link" data-scroll-target="#model-performance"><span class="header-section-number">3</span> 📈 Model Performance</a></li>
   <li><a href="#verifying-annotations" id="toc-verifying-annotations" class="nav-link" data-scroll-target="#verifying-annotations"><span class="header-section-number">4</span> 🔍 Verifying Annotations</a></li>
   <li><a href="#remote-storage" id="toc-remote-storage" class="nav-link" data-scroll-target="#remote-storage"><span class="header-section-number">5</span> ☁️ Remote Storage</a></li>
+  <li><a href="#species-dataset-configuration" id="toc-species-dataset-configuration" class="nav-link" data-scroll-target="#species-dataset-configuration"><span class="header-section-number">6</span> ⚙️ Species Dataset Configuration</a></li>
   </ul>
 </nav>
     </div>
@@ -418,7 +419,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="remote-storage" class="level2" data-number="5">
 <h2 data-number="5" class="anchored" data-anchor-id="remote-storage"><span class="header-section-number">5</span> ☁️ Remote Storage</h2>
-<p>Full datasets and models are stored on CESNET S3: - <strong>Bucket</strong>: <code>bucket</code> - <strong>Path</strong>: <code>Ostatni/Colorado_pollen_detection/staging_area/</code></p>
+<p>Full datasets and models are stored on CESNET S3: - <strong>Bucket</strong>: <code>bucket</code> - <strong>Datasets</strong>: <code>PEG/Colorado/Staged_area/</code> - <strong>Detections</strong>: <code>PEG/Colorado/Detected/</code> - <strong>Models</strong>: <code>PEG/Colorado/trained_models/</code></p>
+</section>
+<section id="species-dataset-configuration" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="species-dataset-configuration"><span class="header-section-number">6</span> ⚙️ Species Dataset Configuration</h2>
+<p>To give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest.</p>
+<p>You can freely inject, override, or classify new species targets (e.g.&nbsp;<code>Gen_alg</code>) by editing the <code>src/species_manifest.csv</code> file mapping directly inside this repository.</p>
+<p>The Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions.</p>
 
 
 </section>

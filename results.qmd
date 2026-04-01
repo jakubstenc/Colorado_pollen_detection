@@ -54,3 +54,10 @@ Full datasets and models are stored on CESNET S3:
 - **Datasets**: `PEG/Colorado/Staged_area/`
 - **Detections**: `PEG/Colorado/Detected/`
 - **Models**: `PEG/Colorado/trained_models/`
+
+## ⚙️ Species Dataset Configuration
+To give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest. 
+
+You can freely inject, override, or classify new species targets (e.g. `Gen_alg`) by editing the `src/species_manifest.csv` file mapping directly inside this repository.
+
+The Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions.

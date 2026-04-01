@@ -39,7 +39,14 @@
     "href": "results.html#remote-storage",
     "title": "Results & Gallery",
     "section": "5 ☁️ Remote Storage",
-    "text": "5 ☁️ Remote Storage\nFull datasets and models are stored on CESNET S3: - Bucket: bucket - Path: Ostatni/Colorado_pollen_detection/staging_area/"
+    "text": "5 ☁️ Remote Storage\nFull datasets and models are stored on CESNET S3: - Bucket: bucket - Datasets: PEG/Colorado/Staged_area/ - Detections: PEG/Colorado/Detected/ - Models: PEG/Colorado/trained_models/"
+  },
+  {
+    "objectID": "results.html#species-dataset-configuration",
+    "href": "results.html#species-dataset-configuration",
+    "title": "Results & Gallery",
+    "section": "6 ⚙️ Species Dataset Configuration",
+    "text": "6 ⚙️ Species Dataset Configuration\nTo give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest.\nYou can freely inject, override, or classify new species targets (e.g. Gen_alg) by editing the src/species_manifest.csv file mapping directly inside this repository.\nThe Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions."
   },
   {
     "objectID": "index.html",

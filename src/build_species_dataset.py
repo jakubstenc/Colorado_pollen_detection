@@ -9,30 +9,23 @@ from pathlib import Path
 from aicsimageio import AICSImage
 from ultralytics import YOLO
 
-# Global Species ID Registry for the multi-class Species Model
-SPECIES_REGISTRY = {
-    "Ran_ado": 0,
-    "Ran_adu": 1,
-    "Ran_niv": 2,
-    "Pol_pro": 3,
-    "Poa_pra": 4,
-    "Cal_pal": 5,
-    "Car_nig": 6,
-    "Dio_pyr": 7,
-    "Epi_ana": 8,
-    "Fes_sup": 9,
-    "Geu_rot": 10,
-    "Pot_div": 11,
-    "Pot_nivea": 12,
-    "Ran_pyg": 13,
-    "Sal_arc": 14,
-    "Sal_gla": 15,
-    "Sax_riv": 16,
-    "Sib_pro": 17,
-    "Tri_par": 18,
-    "Vax_uli": 19,
-    "Ver_alp": 20
-}
+import csv
+
+def load_species_manifest(manifest_path):
+    registry = {}
+    if not os.path.exists(manifest_path):
+        print(f"⚠️ WARNING: Manifest file '{manifest_path}' not found! The extraction will skip all files.")
+        return registry
+        
+    with open(manifest_path, mode='r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            code = row['species_code'].strip()
+            cid = int(row['class_id'].strip())
+            registry[code] = cid
+            
+    print(f"📋 Loaded {len(registry)} species definitions from manifest.")
+    return registry
 
 def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False):
     # Use explicitly selected channels if not single channel
@@ -109,7 +102,7 @@ def extract_general_pollen(tile, model, conf_thresh):
         
     return detections
 
-def generate_stats_report(stats, out_dir):
+def generate_stats_report(stats, out_dir, registry):
     """
     Creates dynamic Quarto report summing up the totals from the extracted datasets.
     """
@@ -143,12 +136,12 @@ def generate_stats_report(stats, out_dir):
         
         for sp, data in sorted(stats.items()):
             if sp == "Negatives": continue
-            class_id = SPECIES_REGISTRY.get(sp, "Unknown")
+            class_id = registry.get(sp, "Unknown")
             f.write(f"| `{sp}` | `{class_id}` | {data['images']} | {data['annotations']} |\n")
             
     print(f"\n📄 Rendering Quarto Specs in {stats_dir}...")
     try:
-        subprocess.run(["quarto", "render", str(qmd_path), "--to", "pdf"], check=True)
+        subprocess.run(["quarto", "render", str(qmd_path), "--to", "typst"], check=True)
         subprocess.run(["quarto", "render", str(qmd_path), "--to", "html"], check=True)
         print("✅ Quarto PDF and HTML rendering complete!")
     except Exception as e:
@@ -160,6 +153,7 @@ def main():
     parser.add_argument("--out", required=True, help="Path to Species_model/Trainig_data/ structure")
     parser.add_argument("--model", required=True, help="Path to the trained general_pollen model")
     parser.add_argument("--conf", type=float, default=0.20, help="Confidence threshold to dictate positive vs negative")
+    parser.add_argument("--manifest", type=str, default="/app/species_manifest.csv", help="Path to species manifest CSV")
     args = parser.parse_args()
 
     root_dir = Path(args.root)
@@ -172,13 +166,15 @@ def main():
     neg_dir.mkdir(parents=True, exist_ok=True)
     
     stats = {}
+    
+    registry = load_species_manifest(args.manifest)
 
     czi_files = list(root_dir.glob("**/*.czi"))
     print(f"\n🔍 Found {len(czi_files)} CZIs to aggressively process...")
     
     for czi_path in czi_files:
         species = None
-        for code in SPECIES_REGISTRY.keys():
+        for code in registry.keys():
             if code in czi_path.name:
                 species = code
                 break
@@ -188,7 +184,7 @@ def main():
             print(f"⚠️ Unknown species inside {czi_path.name}. Skipping!")
             continue
             
-        class_id = SPECIES_REGISTRY[species]
+        class_id = registry[species]
         
         if species not in stats:
             stats[species] = {"images": 0, "annotations": 0, "negatives": 0}
@@ -267,7 +263,7 @@ def main():
         except Exception as e:
             print(f"  ❌ Error parsing {czi_path.name}: {e}")
 
-    generate_stats_report(stats, out_dir)
+    generate_stats_report(stats, out_dir, registry)
     print("\n🎉 Species Dataset Built Sucessfully!")
 
 
