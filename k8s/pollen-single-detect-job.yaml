@@ -61,7 +61,7 @@ spec:
               name: model-vol
       containers:
         - name: czi-preprocessor
-          image: ttl.sh/pollen-czi-anti5:24h
+          image: ttl.sh/pollen-czi-anti8:24h
           imagePullPolicy: Always
           command:
             - sh

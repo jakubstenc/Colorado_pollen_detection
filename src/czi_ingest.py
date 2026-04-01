@@ -242,11 +242,14 @@ def pseudo_label_tile(tile: np.ndarray, model,
             # Convert normalized bounding box [x1, y1, x2, y2] into a polygon [x1, y1, x2, y1, x2, y2, x1, y2]
             x1, y1, x2, y2 = box.xyxyn[0].tolist()
             poly_str = f"{x1:.6f} {y1:.6f} {x2:.6f} {y1:.6f} {x2:.6f} {y2:.6f} {x1:.6f} {y2:.6f}"
-            lines.append(f"{class_id} {poly_str}")
+            lines.append((f"{class_id} {poly_str}", c_conf))
         return lines
 
-    for mask_xy in results[0].masks.xy:
+    for mask_xy, box in zip(results[0].masks.xy, results[0].boxes):
         if mask_xy.shape[0] < 3:
+            continue
+        c_conf = float(box.conf[0])
+        if c_conf < conf:
             continue
         # Physical size filter
         if scale_um_px is not None:
@@ -261,7 +264,7 @@ def pseudo_label_tile(tile: np.ndarray, model,
         norm[:, 0] /= W
         norm[:, 1] /= H
         coords_str = " ".join(f"{x:.6f} {y:.6f}" for x, y in norm)
-        lines.append(f"{class_id} {coords_str}")
+        lines.append((f"{class_id} {coords_str}", c_conf))
 
     return lines
 
@@ -393,12 +396,19 @@ def main() -> None:
             rgb = get_mip_rgb(img, args.channels, grayscale=args.grayscale)
             print(f" ✓  ({rgb.shape[0]}×{rgb.shape[1]} px)")
 
-            # Prepare overview image (resize longest edge to 2000px)
+            # Prepare overview image (resize longest edge to 4000px for better quality)
             H_orig, W_orig = rgb.shape[:2]
-            scale_factor = min(2000.0 / H_orig, 2000.0 / W_orig)
+            scale_factor = min(4000.0 / H_orig, 4000.0 / W_orig)
             new_W, new_H = int(W_orig * scale_factor), int(H_orig * scale_factor)
             overview_rgb = cv2.resize(rgb, (new_W, new_H))
             overview_bgr = cv2.cvtColor(overview_rgb, cv2.COLOR_RGB2BGR)
+            
+            # Save clean version immediately
+            clean_overview_path = out_dir / f"overview_{czi_path.stem}_clean.jpg"
+            cv2.imwrite(str(clean_overview_path), overview_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            
+            # Create an overlay for transparency
+            overview_overlay = overview_bgr.copy()
 
             n_tiles = 0
             for tile, tx, ty in tile_image(rgb, overlap=args.overlap):
@@ -412,13 +422,16 @@ def main() -> None:
                 cv2.imwrite(str(img_path), cv2.cvtColor(tile, cv2.COLOR_RGB2BGR),
                             [cv2.IMWRITE_JPEG_QUALITY, 95])
 
-                annotation_lines = pseudo_label_tile(
+                annotations = pseudo_label_tile(
                     tile, yolo_model, class_id, scale_um_px, conf=args.conf
                 )
-                lbl_path.write_text("\n".join(annotation_lines))
+                
+                lbl_lines = [ann[0] for ann in annotations]
+                if lbl_lines:
+                    lbl_path.write_text("\n".join(lbl_lines))
 
                 # Process annotations for overview & CSV
-                for line in annotation_lines:
+                for line, c_conf in annotations:
                     parts = line.strip().split()
                     pts_norm = np.array(parts[1:], dtype=float).reshape(-1, 2)
                     pts_tile_px = pts_norm * [tile.shape[1], tile.shape[0]]
@@ -431,10 +444,22 @@ def main() -> None:
                         "Area_um2": round(area_um2, 2) if area_um2 else None
                     })
                     
-                    # Draw on overview
+                    # Draw on overview overlay mask
                     pts_orig_px = pts_tile_px + [tx, ty]
                     pts_overview_px = (pts_orig_px * scale_factor).astype(np.int32).reshape((-1, 1, 2))
-                    cv2.polylines(overview_bgr, [pts_overview_px], True, (0, 255, 0), 2)
+                    # Draw filled purple area and outline
+                    # Draw on overview overlay mask
+                    pts_orig_px = pts_tile_px + [tx, ty]
+                    pts_overview_px = (pts_orig_px * scale_factor).astype(np.int32).reshape((-1, 1, 2))
+                    # Draw filled purple area and outline
+                    cv2.fillPoly(overview_overlay, [pts_overview_px], (200, 0, 200))
+                    cv2.polylines(overview_overlay, [pts_overview_px], True, (255, 0, 255), 2)
+                    
+                    # Draw the confidence probability text near the first point
+                    px, py = pts_overview_px[0][0]
+                    text_str = f"{c_conf:.2f}"
+                    cv2.putText(overview_overlay, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(overview_overlay, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
 
                 manifest.append({
                     "tile_id":       stem,
@@ -455,10 +480,14 @@ def main() -> None:
                 tile_counts[split] += 1
                 n_tiles += 1
 
+            # Blend overlay for transparency
+            alpha = 0.4
+            overview_blended = cv2.addWeighted(overview_overlay, alpha, overview_bgr, 1 - alpha, 0)
+
             # Save full image overview
-            overview_path = out_dir / f"overview_{czi_path.stem}.jpg"
-            cv2.imwrite(str(overview_path), overview_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            print(f"     ✅ {n_tiles} tiles extracted. Overview saved to {overview_path.name}")
+            overview_path = out_dir / f"overview_{czi_path.stem}_labeled.jpg"
+            cv2.imwrite(str(overview_path), overview_blended, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            print(f"     ✅ {n_tiles} tiles extracted. Overviews saved as _clean and _labeled.")
 
         except Exception as exc:  # noqa: BLE001
             print(f"  ❌ Failed: {exc}")
