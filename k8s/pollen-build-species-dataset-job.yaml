@@ -75,7 +75,7 @@ spec:
               s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/Trainig_data/*" "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/"
               
               echo "Sending notification email..."
-              python3 /app/notify.py --type default --job_name "Species Dataset Builder"
+              python3 /app/notify.py --type training --job_name "Species Dataset Builder"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
