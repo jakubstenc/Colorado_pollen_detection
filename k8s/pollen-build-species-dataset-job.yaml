@@ -20,8 +20,6 @@ spec:
             - sh
             - -c
             - |
-              echo "Downloading Source CZIs..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Source/" /mnt/czi_data/ --exclude "*" --include "*.czi" --no-verify-ssl
               echo "Downloading general_pollen model..."
               aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" /mnt/model/best.pt --no-verify-ssl
           securityContext:
@@ -57,7 +55,7 @@ spec:
               name: model-vol
       containers:
         - name: dataset-builder
-          image: ttl.sh/pollen-species-builder:24h
+          image: ttl.sh/pollen-species-builder:v2
           imagePullPolicy: Always
           command:
             - sh

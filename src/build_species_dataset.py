@@ -10,6 +10,10 @@ from aicsimageio import AICSImage
 from ultralytics import YOLO
 
 import csv
+import boto3
+import urllib3
+urllib3.disable_warnings()
+from botocore.client import Config
 
 def load_species_manifest(manifest_path):
     registry = {}
@@ -27,35 +31,63 @@ def load_species_manifest(manifest_path):
     print(f"📋 Loaded {len(registry)} species definitions from manifest.")
     return registry
 
-def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False):
-    # Use explicitly selected channels if not single channel
-    if img.shape[1] > max(channels):
-        raw = img.get_image_data("ZYX", C=channels, T=0)
+def normalize_to_uint8(arr: np.ndarray) -> np.ndarray:
+    """Per-channel 0.5-99.5 percentile contrast stretch -> uint8 RGB."""
+    out = np.zeros(arr.shape[:2] + (arr.shape[2],), dtype=np.uint8)
+    for c in range(arr.shape[2]):
+        ch = arr[..., c].astype(np.float32)
+        valid = ch[ch > 0]
+        if valid.size == 0:
+            continue
+        lo, hi = np.percentile(valid, [0.5, 99.5])
+        ch = np.clip((ch - lo) / (hi - lo + 1e-8), 0, 1) * 255.0
+        out[..., c] = ch.astype(np.uint8)
+    return out
+
+def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
+    """
+    Compute Maximum Intensity Projection across Z for the given channels.
+    Returns uint8 RGB array (H, W, 3).
+    """
+    if 'S' in img.dims.order and getattr(img.dims, 'S', 1) == 3:
+        rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
+        if rgb.dtype != np.uint8:
+            if rgb.max() > 255:
+                rgb = (rgb / 256).astype(np.uint8)
+            else:
+                rgb = rgb.astype(np.uint8)
+        if grayscale:
+            import cv2
+            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+            rgb = np.stack([gray, gray, gray], axis=-1)
+        return rgb
+
+    dask_czyx = img.get_image_dask_data("CZYX", S=0)
+    num_c = dask_czyx.shape[0]
+    channels_data = []
+    target_channels = [c for c in channels[:3] if c < num_c]
+    
+    for c in target_channels:
+        mip = dask_czyx[c].max(axis=0).compute()
+        channels_data.append(mip)
+
+    if grayscale and len(channels_data) > 0:
+        combined = np.max(np.stack(channels_data, axis=-1), axis=-1)
+        channels_data = [combined, combined, combined]
     else:
-        raw = img.get_image_data("ZYX", C=0, T=0)
+        while len(channels_data) < 3:
+            if len(channels_data) > 0:
+                channels_data.append(np.zeros_like(channels_data[0]))
+            else:
+                channels_data.append(np.zeros((1024, 1024), dtype=np.uint8))
 
-    # Handle Z projection
-    if len(raw.shape) == 3:  # ZYX
-        raw = np.max(raw, axis=0) # mip
+        is_single_channel = (len(target_channels) == 1)
+        if is_single_channel:
+            active_ch = channels_data[0]
+            channels_data = [active_ch, active_ch, active_ch]
 
-    # Handle grayscale requested
-    if grayscale or len(raw.shape) == 2:
-        if len(raw.shape) == 3 and raw.shape[0] > 1:
-            raw = np.mean(raw, axis=0).astype(raw.dtype)
-        # Convert back to HWC RGB for OpenCV compatibility
-        raw = np.stack([raw, raw, raw], axis=-1)
-    elif len(raw.shape) == 3 and raw.shape[0] == 3: # CYX to YXC
-        raw = np.moveaxis(raw, 0, -1)
-
-    # Normalize to 8-bit
-    raw = raw.astype(np.float32)
-    min_val, max_val = np.percentile(raw, (1, 99))
-    if max_val > min_val:
-        raw = np.clip((raw - min_val) / (max_val - min_val) * 255.0, 0, 255)
-    else:
-        raw = np.zeros_like(raw)
-
-    return raw.astype(np.uint8)
+    rgb = np.stack(channels_data, axis=-1)
+    return normalize_to_uint8(rgb)
 
 def tile_image(rgb, size=640, overlap=0.2):
     stride = int(size * (1 - overlap))
@@ -169,13 +201,60 @@ def main():
     
     registry = load_species_manifest(args.manifest)
 
-    czi_files = list(root_dir.glob("**/*.czi"))
-    print(f"\n🔍 Found {len(czi_files)} CZIs to aggressively process...")
+    print("\n🌍 Connecting to S3 to dynamically list and select 1 CZI per species...")
+    s3_endpoint = os.environ.get("S3_ENDPOINT", "https://s3.cl4.du.cesnet.cz")
+    s3_bucket = os.environ.get("S3_BUCKET", "bucket")
+    aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     
-    for czi_path in czi_files:
+    s3_kwargs = {"endpoint_url": s3_endpoint, "verify": False, "config": Config(signature_version="s3v4", s3={"payload_signing_enabled": False})}
+    if aws_access_key_id and aws_secret_access_key:
+        s3_kwargs["aws_access_key_id"] = aws_access_key_id
+        s3_kwargs["aws_secret_access_key"] = aws_secret_access_key
+        
+    s3 = boto3.client("s3", **s3_kwargs)
+    
+    paginator = s3.get_paginator('list_objects_v2')
+    pages = paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Source/")
+    
+    czi_keys = []
+    for page in pages:
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".czi"):
+                czi_keys.append(obj["Key"])
+                
+    print(f"🔍 Found {len(czi_keys)} raw CZIs on S3.")
+    
+    czi_by_species = {}
+    for key in czi_keys:
+        filename = key.split("/")[-1]
         species = None
         for code in registry.keys():
-            if code in czi_path.name:
+            if code.lower() in filename.lower():
+                species = code
+                break
+        if species:
+            if species not in czi_by_species:
+                czi_by_species[species] = []
+            czi_by_species[species].append(key)
+            
+    selected_czi_keys = []
+    for sp, keys in czi_by_species.items():
+        if keys:
+            selected_czi_keys.append(random.choice(keys))
+            
+    print(f"🎲 Selected {len(selected_czi_keys)} CZI keys to dynamically download and process...")
+    
+    for czi_key in selected_czi_keys:
+        filename = czi_key.split("/")[-1]
+        czi_path = root_dir / filename
+        
+        print(f"\n📥 Downloading {filename} from S3...")
+        s3.download_file(s3_bucket, czi_key, str(czi_path))
+        
+        species = None
+        for code in registry.keys():
+            if code.lower() in czi_path.name.lower():
                 species = code
                 break
                 
@@ -262,6 +341,11 @@ def main():
             
         except Exception as e:
             print(f"  ❌ Error parsing {czi_path.name}: {e}")
+            
+        # Clean up the large CZI file immediately to save disk space
+        if czi_path.exists():
+            os.remove(str(czi_path))
+            print(f"   🧹 Removed temporary file {czi_path.name}")
 
     generate_stats_report(stats, out_dir, registry)
     print("\n🎉 Species Dataset Built Sucessfully!")
