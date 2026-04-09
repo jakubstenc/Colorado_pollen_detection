@@ -300,8 +300,9 @@ ul.task-list li input[type="checkbox"] {
   <ul>
   <li><a href="#key-features" id="toc-key-features" class="nav-link active" data-scroll-target="#key-features"><span class="header-section-number">1</span> 🚀 Key Features</a></li>
   <li><a href="#data-storage-policy" id="toc-data-storage-policy" class="nav-link" data-scroll-target="#data-storage-policy"><span class="header-section-number">2</span> 📦 Data Storage Policy</a></li>
-  <li><a href="#pipeline-overview" id="toc-pipeline-overview" class="nav-link" data-scroll-target="#pipeline-overview"><span class="header-section-number">3</span> 🛠️ Pipeline Overview</a></li>
-  <li><a href="#get-started" id="toc-get-started" class="nav-link" data-scroll-target="#get-started"><span class="header-section-number">4</span> 📖 Get Started</a></li>
+  <li><a href="#roboflow-annotation" id="toc-roboflow-annotation" class="nav-link" data-scroll-target="#roboflow-annotation"><span class="header-section-number">3</span> 🏷️ Roboflow Annotation</a></li>
+  <li><a href="#pipeline-overview" id="toc-pipeline-overview" class="nav-link" data-scroll-target="#pipeline-overview"><span class="header-section-number">4</span> 🛠️ Pipeline Overview</a></li>
+  <li><a href="#get-started" id="toc-get-started" class="nav-link" data-scroll-target="#get-started"><span class="header-section-number">5</span> 📖 Get Started</a></li>
   </ul>
 </nav>
     </div>
@@ -351,8 +352,13 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>Models</strong>: Stored reliably in <code>s3://bucket/PEG/Colorado/trained_models/</code></li>
 </ul>
 </section>
-<section id="pipeline-overview" class="level2" data-number="3">
-<h2 data-number="3" class="anchored" data-anchor-id="pipeline-overview"><span class="header-section-number">3</span> 🛠️ Pipeline Overview</h2>
+<section id="roboflow-annotation" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="roboflow-annotation"><span class="header-section-number">3</span> 🏷️ Roboflow Annotation</h2>
+<p>While the pipeline relies heavily on high-throughput automated slicing and <code>pseudo_label.py</code> scripts natively, the human-in-the-loop manual curation for the base general pollen model is hosted externally. You can review, correct, and track the instance-segmentation polygon masks online:</p>
+<p><strong><a href="https://app.roboflow.com/charles-university/pollen_lazy_labeling/7">Roboflow: Pollen Lazy Labeling</a></strong></p>
+</section>
+<section id="pipeline-overview" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="pipeline-overview"><span class="header-section-number">4</span> 🛠️ Pipeline Overview</h2>
 <div id="fig-pipeline" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-pipeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -384,8 +390,8 @@ Figure&nbsp;1: Pipeline from Raw Data to Biological Insights
 </figure>
 </div>
 </section>
-<section id="get-started" class="level2" data-number="4">
-<h2 data-number="4" class="anchored" data-anchor-id="get-started"><span class="header-section-number">4</span> 📖 Get Started</h2>
+<section id="get-started" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="get-started"><span class="header-section-number">5</span> 📖 Get Started</h2>
 <p>Check the following sections to get up and running:</p>
 <ul>
 <li><a href="./tutorials/ingestion.html">Ingestion Tutorial</a>: How to convert your first .czi folder.</li>
