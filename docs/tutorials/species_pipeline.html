@@ -108,6 +108,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -383,6 +386,31 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>Stage 1 Segmenter:</strong> Locates arbitrary pollen grains rapidly.</li>
 <li><strong>Stage 2 Classifier:</strong> Identifies the biological species directly from the bounded crops.</li>
 </ol>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+  subgraph Stage 1
+    A[Raw .czi Scans] --&gt; B[General Segmenter Model]
+    B --&gt; C[Pollen Instance Masks]
+  end
+  subgraph Stage 2
+    C --&gt;|extract_crops.py| D[Classification Dataset]
+    D --&gt;|train_species.py| E[YOLOv8-cls Classifier Model]
+  end
+  subgraph Feedback Loop
+    E --&gt;|inference_species.py| F[Active Learning UI Dataset]
+    F --&gt;|Manual Fixes| G[dataset_species_curated/]
+    G -.-&gt;|Retrain| D
+  end
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
 <hr>
 </section>
 <section id="crop-extraction-dataset-formatting" class="level2" data-number="1.2">
