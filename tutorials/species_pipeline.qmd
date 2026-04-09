@@ -14,18 +14,19 @@ Because creating a single complex multi-class instance segmentation model requir
 2. **Stage 2 Classifier:** Identifies the biological species directly from the bounded crops.
 
 ```{mermaid}
+%%{init: {'theme': 'dark'}}%%
 graph TD
   subgraph Stage 1
-    A[Raw .czi Scans] --> B[General Segmenter Model]
-    B --> C[Pollen Instance Masks]
+    A["Raw .czi Scans"] --> B["General Segmenter Model"]
+    B --> C["Pollen Instance Masks"]
   end
   subgraph Stage 2
-    C -->|extract_crops.py| D[Classification Dataset]
-    D -->|train_species.py| E[YOLOv8-cls Classifier Model]
+    C -->|extract_crops.py| D["Classification Dataset"]
+    D -->|train_species.py| E["YOLOv8-cls Classifier Model"]
   end
   subgraph Feedback Loop
-    E -->|inference_species.py| F[Active Learning UI Dataset]
-    F -->|Manual Fixes| G[dataset_species_curated/]
+    E -->|inference_species.py| F["Active Learning UI Dataset"]
+    F -->|Manual Fixes| G["dataset_species_curated/"]
     G -.->|Retrain| D
   end
 ```

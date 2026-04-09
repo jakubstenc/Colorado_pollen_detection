@@ -391,18 +391,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div>
 <p></p><figure class="figure"><p></p>
 <div>
-<pre class="mermaid mermaid-js">graph TD
+<pre class="mermaid mermaid-js">%%{init: {'theme': 'dark'}}%%
+graph TD
   subgraph Stage 1
-    A[Raw .czi Scans] --&gt; B[General Segmenter Model]
-    B --&gt; C[Pollen Instance Masks]
+    A["Raw .czi Scans"] --&gt; B["General Segmenter Model"]
+    B --&gt; C["Pollen Instance Masks"]
   end
   subgraph Stage 2
-    C --&gt;|extract_crops.py| D[Classification Dataset]
-    D --&gt;|train_species.py| E[YOLOv8-cls Classifier Model]
+    C --&gt;|extract_crops.py| D["Classification Dataset"]
+    D --&gt;|train_species.py| E["YOLOv8-cls Classifier Model"]
   end
   subgraph Feedback Loop
-    E --&gt;|inference_species.py| F[Active Learning UI Dataset]
-    F --&gt;|Manual Fixes| G[dataset_species_curated/]
+    E --&gt;|inference_species.py| F["Active Learning UI Dataset"]
+    F --&gt;|Manual Fixes| G["dataset_species_curated/"]
     G -.-&gt;|Retrain| D
   end
 </pre>
