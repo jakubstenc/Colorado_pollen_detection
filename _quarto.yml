@@ -4,7 +4,9 @@ project:
   render:
     - index.qmd
     - tutorials/ingestion.qmd
+    - tutorials/species_pipeline.qmd
     - results.qmd
+
 
 website:
   title: "Colorado Pollen Discovery"
@@ -17,6 +19,8 @@ website:
         text: Home
       - href: tutorials/ingestion.qmd
         text: Ingestion Guide
+      - href: tutorials/species_pipeline.qmd
+        text: Species Pipeline
       - href: results.qmd
         text: Results
     right:

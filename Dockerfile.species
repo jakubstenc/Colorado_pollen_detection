@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y wget curl && \
     wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.4.551/quarto-1.4.551-linux-amd64.deb && \
     dpkg -i quarto-1.4.551-linux-amd64.deb && \
     rm quarto-1.4.551-linux-amd64.deb && \
-    pip install --no-cache-dir boto3 pandas aicsimageio aicspylibczi "imagecodecs>=2023.1.23"
+    pip install --no-cache-dir boto3 pandas aicsimageio aicspylibczi bioformats_jar "imagecodecs>=2023.1.23"
 
-# Install Chromium strictly for Quarto PDF generation via typst/chromium headless
-RUN apt-get update && apt-get install -y chromium xvfb
+# Install Chromium strictly for Quarto PDF generation via typst/chromium headless, and JRE for bioformats
+RUN apt-get update && apt-get install -y chromium xvfb default-jre-headless
 
 # Copy all source
 COPY src/ /app/

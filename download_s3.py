@@ -20,9 +20,12 @@ for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
     for obj in page.get("Contents", []):
         key = obj["Key"]
         rel_path = key[len(prefix):]
-        if not rel_path: continue
+        if not rel_path or key.endswith('/'): continue
         local_path = os.path.join(out_dir, rel_path)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        s3.download_file(s3_bucket, key, local_path)
+        try:
+            s3.download_file(s3_bucket, key, local_path)
+        except Exception as e:
+            print(f"⚠️ Skipped {key} due to S3 Exception: {e}")
 
 print("✅ Desktop Sync Complete! The dataset is ready at ~/Desktop/Species_model")
