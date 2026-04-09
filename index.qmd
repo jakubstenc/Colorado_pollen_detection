@@ -29,11 +29,14 @@ To keep the repository lightweight and efficient, large datasets and model weigh
 ::: {#fig-pipeline}
 ```{mermaid}
 graph LR
-  A[.czi Scans] --> B[MIP Projection]
+  A[Raw .czi Scans] --> B[MAX-Z Projection (MIP)]
   B --> C[640x640 Tiling]
-  C --> D[Pseudo-Labeling]
-  D --> E[YOLOv11 Training]
-  E --> F[Inference & Discovery]
+  C --> D(Pseudo-Labeling / Curated Data)
+  C --> E(Negative Filtering / Empty Tiles)
+  D --> F[YOLOv8 Segmentation Training]
+  E --> F
+  F --> G[General Pollen Detection Model]
+  G --> H[Inference & Discovery]
 ```
 Pipeline from Raw Data to Biological Insights
 :::
