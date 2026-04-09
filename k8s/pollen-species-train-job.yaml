@@ -31,7 +31,10 @@ spec:
               echo "Starting YOLOv8 Species Classification Training..."
               export MODEL_DIR=/app/models/species_classifier/
               
-              python3 /scripts/train_species.py --dataset /app/dataset_species
+              echo "Extracting classification crops from tiles..."
+              python3 /scripts/extract_crops.py --src /app/dataset_species --out /app/classification_dataset
+              
+              python3 /scripts/train_species.py --dataset /app/classification_dataset
               
               echo "Uploading best weights to S3..."
               s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/models/species_classifier/*" "s3://$S3_BUCKET/PEG/Colorado/trained_models/species_classifier/"

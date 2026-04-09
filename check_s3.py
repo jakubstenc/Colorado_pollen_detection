@@ -12,7 +12,7 @@ s3 = boto3.client(
     config=Config(signature_version='s3v4')
 )
 
-prefix = "PEG/Colorado/trained_models/general_pollen/general_pollen_20260407_1430/"
+prefix = "PEG/Colorado/trained_models/species_classifier/"
 print(f"Listing {prefix} ...")
 paginator = s3.get_paginator('list_objects_v2')
 for page in paginator.paginate(Bucket='bucket', Prefix=prefix):
