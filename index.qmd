@@ -24,6 +24,12 @@ To keep the repository lightweight and efficient, large datasets and model weigh
 - **YOLO Datasets**: Stored dynamically via `s3://bucket/PEG/Colorado/Staged_area/` and `s3://bucket/PEG/Colorado/Staged_negatives/`
 - **Models**: Stored reliably in `s3://bucket/PEG/Colorado/trained_models/`
 
+## 🏷️ Roboflow Annotation
+
+While the pipeline relies heavily on high-throughput automated slicing and `pseudo_label.py` scripts natively, the human-in-the-loop manual curation for the base general pollen model is hosted externally. You can review, correct, and track the instance-segmentation polygon masks online:
+
+**[Roboflow: Pollen Lazy Labeling](https://app.roboflow.com/charles-university/pollen_lazy_labeling/7)**
+
 ## 🛠️ Pipeline Overview
 
 ::: {#fig-pipeline}
