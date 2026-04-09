@@ -16,22 +16,24 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ttl.sh/pollen-train-anti:24h
+          image: IMAGE_PLACEHOLDER
           imagePullPolicy: Always
           command:
             - sh
             - -c
             - |
               echo "Preparing container paths..."
-              mkdir -p /app/Staged_area /app/Staged_negatives /app/models/general_pollen
+              mkdir -p /app/Staged_area /app/Staged_negatives /app/Curated_Retrain_Data /app/models/general_pollen
               
               echo "Downloading datasets via S3..."
               aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Staged_area/" /app/Staged_area/ --no-verify-ssl
               aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Staged_negatives/" /app/Staged_negatives/ --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Curated_Retrain_Data/" /app/Curated_Retrain_Data/ --no-verify-ssl
               
               echo "Starting YOLOv8 general training..."
               export STAGED_AREA=/app/Staged_area/
               export STAGED_NEGATIVES=/app/Staged_negatives/
+              export STAGED_CURATED=/app/Curated_Retrain_Data/
               export DATASET_ROOT=/app/temp_dataset
               export MODEL_DIR=/app/models/general_pollen/
               

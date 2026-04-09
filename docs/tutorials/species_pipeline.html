@@ -6,8 +6,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
+<meta name="description" content="End-to-End Pipeline for Multi-Class Species Classification">
 
-<title>Colorado Pollen Detection Pipeline – Colorado Pollen Discovery</title>
+<title>Species Identification Workflow – Colorado Pollen Discovery</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,31 +21,66 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
-<script src="site_libs/quarto-nav/quarto-nav.js"></script>
-<script src="site_libs/quarto-nav/headroom.min.js"></script>
-<script src="site_libs/clipboard/clipboard.min.js"></script>
-<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
-<script src="site_libs/quarto-search/fuse.min.js"></script>
-<script src="site_libs/quarto-search/quarto-search.js"></script>
-<meta name="quarto:offset" content="./">
-<script src="site_libs/quarto-html/quarto.js" type="module"></script>
-<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
-<script src="site_libs/quarto-html/popper.min.js"></script>
-<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
-<script src="site_libs/quarto-html/anchor.min.js"></script>
-<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-707d8167ce6003fca903bfe2be84ab7f.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
-<script src="site_libs/bootstrap/bootstrap.min.js"></script>
-<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-189c0f6d2ab9019698ead5cabd4c388c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-dark-d1074a6bd9566c964254d90e89473a96.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="light">
-<link href="site_libs/bootstrap/bootstrap-189c0f6d2ab9019698ead5cabd4c388c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" class="quarto-color-scheme" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-dark-707d8167ce6003fca903bfe2be84ab7f.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-7b89279ff1a6dce999919e0e67d4d9ec.css" rel="stylesheet" class="quarto-color-scheme-extra" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-189c0f6d2ab9019698ead5cabd4c388c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-dark-d1074a6bd9566c964254d90e89473a96.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="light">
+<link href="../site_libs/bootstrap/bootstrap-189c0f6d2ab9019698ead5cabd4c388c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme-extra" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -72,9 +108,6 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Search"
   }
 }</script>
-<script src="site_libs/quarto-diagram/mermaid.min.js"></script>
-<script src="site_libs/quarto-diagram/mermaid-init.js"></script>
-<link href="site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
 
 
 </head>
@@ -246,9 +279,9 @@ ul.task-list li input[type="checkbox"] {
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
-    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <a href="../index.html" class="navbar-brand navbar-brand-logo">
     </a>
-    <a class="navbar-brand" href="./index.html">
+    <a class="navbar-brand" href="../index.html">
     <span class="navbar-title">Colorado Pollen Discovery</span>
     </a>
   </div>
@@ -259,19 +292,19 @@ ul.task-list li input[type="checkbox"] {
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
   <li class="nav-item">
-    <a class="nav-link active" href="./index.html" aria-current="page"> 
+    <a class="nav-link" href="../index.html"> 
 <span class="menu-text">Home</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./tutorials/ingestion.html"> 
+    <a class="nav-link" href="../tutorials/ingestion.html"> 
 <span class="menu-text">Ingestion Guide</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./tutorials/species_pipeline.html"> 
+    <a class="nav-link active" href="../tutorials/species_pipeline.html" aria-current="page"> 
 <span class="menu-text">Species Pipeline</span></a>
   </li>  
   <li class="nav-item">
-    <a class="nav-link" href="./results.html"> 
+    <a class="nav-link" href="../results.html"> 
 <span class="menu-text">Results</span></a>
   </li>  
 </ul>
@@ -298,10 +331,17 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#key-features" id="toc-key-features" class="nav-link active" data-scroll-target="#key-features"><span class="header-section-number">1</span> 🚀 Key Features</a></li>
-  <li><a href="#data-storage-policy" id="toc-data-storage-policy" class="nav-link" data-scroll-target="#data-storage-policy"><span class="header-section-number">2</span> 📦 Data Storage Policy</a></li>
-  <li><a href="#pipeline-overview" id="toc-pipeline-overview" class="nav-link" data-scroll-target="#pipeline-overview"><span class="header-section-number">3</span> 🛠️ Pipeline Overview</a></li>
-  <li><a href="#get-started" id="toc-get-started" class="nav-link" data-scroll-target="#get-started"><span class="header-section-number">4</span> 📖 Get Started</a></li>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a>
+  <ul class="collapse">
+  <li><a href="#two-stage-architecture" id="toc-two-stage-architecture" class="nav-link" data-scroll-target="#two-stage-architecture"><span class="header-section-number">1.1</span> Two-Stage Architecture</a></li>
+  <li><a href="#crop-extraction-dataset-formatting" id="toc-crop-extraction-dataset-formatting" class="nav-link" data-scroll-target="#crop-extraction-dataset-formatting"><span class="header-section-number">1.2</span> 1. Crop Extraction &amp; Dataset Formatting</a></li>
+  <li><a href="#training-the-species-classifier" id="toc-training-the-species-classifier" class="nav-link" data-scroll-target="#training-the-species-classifier"><span class="header-section-number">1.3</span> 2. Training the Species Classifier</a></li>
+  <li><a href="#routine-inference-pipeline" id="toc-routine-inference-pipeline" class="nav-link" data-scroll-target="#routine-inference-pipeline"><span class="header-section-number">1.4</span> 3. Routine Inference Pipeline</a>
+  <ul class="collapse">
+  <li><a href="#outputs-generated" id="toc-outputs-generated" class="nav-link" data-scroll-target="#outputs-generated"><span class="header-section-number">1.4.1</span> Outputs Generated:</a></li>
+  </ul></li>
+  <li><a href="#active-iterative-feedback" id="toc-active-iterative-feedback" class="nav-link" data-scroll-target="#active-iterative-feedback"><span class="header-section-number">1.5</span> 4. Active Iterative Feedback</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -311,10 +351,14 @@ ul.task-list li input[type="checkbox"] {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Colorado Pollen Detection Pipeline</h1>
-<p class="subtitle lead">Scaling from 18k Zeiss Scans to Deep Learning Insights</p>
+<h1 class="title">Species Identification Workflow</h1>
 </div>
 
+<div>
+  <div class="description">
+    End-to-End Pipeline for Multi-Class Species Classification
+  </div>
+</div>
 
 
 <div class="quarto-title-meta">
@@ -329,69 +373,64 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>Welcome to the documentation for the <strong>Colorado Pollen Detection</strong> project. This pipeline is designed to handle high-resolution <code>.czi</code> (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art <strong>YOLOv8 Instance Segmentation</strong> architectures.</p>
-<blockquote class="blockquote">
-<p>[!IMPORTANT] <strong>Segmentation-Based</strong>: All labeling in this project is performed as <strong>Instance Segmentation</strong> (polygons), not just bounding boxes. We utilize the enormous 40M parameter <code>yolov8l-seg.pt</code> model to trace exact, mathematically precise masks around pollen perimeters.</p>
-</blockquote>
-<section id="key-features" class="level2" data-number="1">
-<h2 data-number="1" class="anchored" data-anchor-id="key-features"><span class="header-section-number">1</span> 🚀 Key Features</h2>
-<ul>
-<li><strong>High-Resolution Tiling</strong>: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.</li>
-<li><strong>Max-Z Projection</strong>: Automated MIP reduction to consolidate focus levels without losing detail.</li>
-<li><strong>Rigorous 80/10/10 Split</strong>: The pipeline enforces a strictly isolated 10% Test dataset, guaranteeing totally unbiased post-training evaluation metrics.</li>
-<li><strong>Automated Negative Filtering</strong>: 100% automated ingestion of purely empty background images to hyper-penalize false-positive debris detections.</li>
-</ul>
+<section id="overview" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Overview</h1>
+<p>The original pollen detection pipeline handles generalized “pollen” tracking by treating everything equally as class <code>0</code>. The <strong>Species Specific Pipeline</strong> introduces a secondary Stage 2 Classification network allowing us to categorize up to 45 different species per sample recursively mapping to the <code>species_manifest.csv</code> ground truth.</p>
+<section id="two-stage-architecture" class="level2" data-number="1.1">
+<h2 data-number="1.1" class="anchored" data-anchor-id="two-stage-architecture"><span class="header-section-number">1.1</span> Two-Stage Architecture</h2>
+<p>Because creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:</p>
+<ol type="1">
+<li><strong>Stage 1 Segmenter:</strong> Locates arbitrary pollen grains rapidly.</li>
+<li><strong>Stage 2 Classifier:</strong> Identifies the biological species directly from the bounded crops.</li>
+</ol>
+<hr>
 </section>
-<section id="data-storage-policy" class="level2" data-number="2">
-<h2 data-number="2" class="anchored" data-anchor-id="data-storage-policy"><span class="header-section-number">2</span> 📦 Data Storage Policy</h2>
-<p>To keep the repository lightweight and efficient, large datasets and model weights are <strong>not</strong> stored on GitHub. Instead, they are synchronized with the <strong>CESNET S3 (S3.cl4.du.cesnet.cz)</strong> storage.</p>
-<ul>
-<li><strong>Source Scans</strong>: Stored in <code>s3://bucket/PEG/Colorado/detect_images/</code></li>
-<li><strong>YOLO Datasets</strong>: Stored dynamically via <code>s3://bucket/PEG/Colorado/Staged_area/</code> and <code>s3://bucket/PEG/Colorado/Staged_negatives/</code></li>
-<li><strong>Models</strong>: Stored reliably in <code>s3://bucket/PEG/Colorado/trained_models/</code></li>
-</ul>
+<section id="crop-extraction-dataset-formatting" class="level2" data-number="1.2">
+<h2 data-number="1.2" class="anchored" data-anchor-id="crop-extraction-dataset-formatting"><span class="header-section-number">1.2</span> 1. Crop Extraction &amp; Dataset Formatting</h2>
+<p>If you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using <code>extract_crops.py</code>.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> src/extract_crops.py <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--src</span> Species_model/Training_data <span class="dt">\</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--out</span> dataset_species <span class="dt">\</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--pad</span> 0.1 <span class="dt">\</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--split</span> 0.8</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This transforms segmented masks directly into standard <code>dataset_species/train/&lt;SpeciesCode&gt;</code> ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks.</p>
+<hr>
 </section>
-<section id="pipeline-overview" class="level2" data-number="3">
-<h2 data-number="3" class="anchored" data-anchor-id="pipeline-overview"><span class="header-section-number">3</span> 🛠️ Pipeline Overview</h2>
-<div id="fig-pipeline" class="quarto-float quarto-figure quarto-figure-center anchored">
-<figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-pipeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<div class="cell" data-layout-align="default">
-<div class="cell-output-display">
-<div>
-<p></p><figure class="figure"><p></p>
-<div>
-<pre class="mermaid mermaid-js">graph LR
-  A[.czi Scans] --&gt; B[MIP Projection]
-  B --&gt; C[640x640 Tiling]
-  C --&gt; D[Pseudo-Labeling]
-  D --&gt; E[YOLOv11 Training]
-  E --&gt; F[Inference &amp; Discovery]
-</pre>
-</div>
-<p></p></figure><p></p>
-</div>
-</div>
-</div>
-</div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pipeline-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;1: Pipeline from Raw Data to Biological Insights
-</figcaption>
-</figure>
-</div>
+<section id="training-the-species-classifier" class="level2" data-number="1.3">
+<h2 data-number="1.3" class="anchored" data-anchor-id="training-the-species-classifier"><span class="header-section-number">1.3</span> 2. Training the Species Classifier</h2>
+<p>Native image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging <code>yolov8n-cls</code> weights with heavily augmented sweeps:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> src/train_species.py <span class="at">--dataset</span> dataset_species</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Outputs dynamically deploy to <code>models/species_classifier/latest.pt</code> ensuring recursive compatibility downstream.</em></p>
+<hr>
 </section>
-<section id="get-started" class="level2" data-number="4">
-<h2 data-number="4" class="anchored" data-anchor-id="get-started"><span class="header-section-number">4</span> 📖 Get Started</h2>
-<p>Check the following sections to get up and running:</p>
+<section id="routine-inference-pipeline" class="level2" data-number="1.4">
+<h2 data-number="1.4" class="anchored" data-anchor-id="routine-inference-pipeline"><span class="header-section-number">1.4</span> 3. Routine Inference Pipeline</h2>
+<p>The native <code>inference_species.py</code> script replaces <code>czi_ingest.py</code> when investigating novel, untouched samples.</p>
+<p>This script parses all raw <code>.czi</code> microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> src/inference_species.py <span class="dt">\</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--root</span> /path/to/czi/scans <span class="dt">\</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--out</span> ActiveLearning_Outputs <span class="dt">\</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-seg</span> models/general_pollen/latest.pt <span class="dt">\</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-cls</span> models/species_classifier/latest.pt</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="outputs-generated" class="level3" data-number="1.4.1">
+<h3 data-number="1.4.1" class="anchored" data-anchor-id="outputs-generated"><span class="header-section-number">1.4.1</span> Outputs Generated:</h3>
 <ul>
-<li><a href="./tutorials/ingestion.html">Ingestion Tutorial</a>: How to convert your first .czi folder.</li>
-<li><strong>Training</strong>: Set up GPU training using <code>src/train_pollen.py</code>.</li>
-<li><strong>Pseudo-Labeling</strong>: Auto-annotate tiles using <code>src/pseudo_label.py</code>.</li>
+<li>📊 <strong><code>summary_results.csv</code></strong>: A dense table specifying exactly <code>[CZI_File, Tile, Species, Confidence, Area_um2]</code> summarizing massive biological volumes.</li>
+<li>🗺️ <strong><code>overview_{name}_labeled.jpg</code></strong>: A macro map detailing spatial distribution of every instance mapped by species!</li>
+<li>🗂️ <strong>UI Dataset Format</strong>: Saves instances logically grouped (<code>Images</code>, <code>Labels</code>, <code>Vizualization</code>) explicitly built for immediate manual feedback.</li>
 </ul>
 <hr>
-<p><em>Project maintained by Jakub Štenc (CESNET / Prague).</em></p>
+</section>
+</section>
+<section id="active-iterative-feedback" class="level2" data-number="1.5">
+<h2 data-number="1.5" class="anchored" data-anchor-id="active-iterative-feedback"><span class="header-section-number">1.5</span> 4. Active Iterative Feedback</h2>
+<p>Our AI improves only via your oversight. Start the frontend interface to manually vet species derivations:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> active_learning_ui.py</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># → http://127.0.0.1:5001</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Once in the inspector: 1. Scan the visualized crops. 2. If the predicted species is incorrect, select the biological ground-truth using the <strong>“Correct Species Identity”</strong> drop-down menu. 3. Upon validating using <strong>[Right Arrow]</strong>, the framework will natively physically crop and drop that corrected target directly into <code>dataset_species_curated/train/&lt;Species&gt;</code> feeding seamlessly right back into Step 2 for the next cycle.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

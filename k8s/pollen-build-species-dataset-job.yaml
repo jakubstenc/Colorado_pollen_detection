@@ -55,7 +55,7 @@ spec:
               name: model-vol
       containers:
         - name: dataset-builder
-          image: ttl.sh/pollen-species-builder:v2
+          image: ttl.sh/pollen-species-builder:v9
           imagePullPolicy: Always
           command:
             - sh

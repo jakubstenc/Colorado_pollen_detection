@@ -10,6 +10,7 @@ from datetime import datetime
 # Define Config Paths (with ENV fallbacks for containerized runs)
 STAGED_AREA = os.getenv("STAGED_AREA", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/")
 STAGED_NEGATIVES = os.getenv("STAGED_NEGATIVES", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives")
+STAGED_CURATED = os.getenv("STAGED_CURATED", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Curated_Retrain_Data")
 DATASET_ROOT = os.getenv("DATASET_ROOT", "/tmp/general_pollen_dataset")
 MODEL_DIR = os.getenv("MODEL_DIR", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen")
 
@@ -44,6 +45,17 @@ def prep_dataset():
     if os.path.exists(STAGED_NEGATIVES):
         for img in glob.glob(os.path.join(STAGED_NEGATIVES, "**", "*.jpg"), recursive=True):
             pairs.append((img, None, False))
+            
+    # 3. Gather Human-Curated Positives and Explicit Hard Negatives
+    if os.path.exists(STAGED_CURATED):
+        print("🤝 Injecting Human-Curated Intelligence...")
+        curated_imgs = glob.glob(os.path.join(STAGED_CURATED, "images", "*.jpg"))
+        for img in curated_imgs:
+            lbl = img.replace("images", "labels").replace(".jpg", ".txt")
+            if os.path.exists(lbl) and os.path.getsize(lbl) > 0:
+                pairs.append((img, lbl, True)) # Explicit Curated Positive
+            else:
+                pairs.append((img, None, False)) # Explicit Curated Hard Negative Dirt
                 
     if not pairs:
         print("❌ No images found in staging areas!")
@@ -105,8 +117,8 @@ def train_general():
     
     results = model.train(
         data=os.path.join(DATASET_ROOT, 'data.yaml'),
-        epochs=500,
-        patience=0,
+        epochs=200,      # Constrained max epochs
+        patience=25,     # Hard early-stopping boundary to strictly prevent dataset overfitting
         close_mosaic=20,
         batch=32, # Reduced to 32 to fit the Large Segmentation model in VRAM safely
         imgsz=640,

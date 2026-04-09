@@ -62,7 +62,11 @@ def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
             rgb = np.stack([gray, gray, gray], axis=-1)
         return rgb
 
-    dask_czyx = img.get_image_dask_data("CZYX", S=0)
+    kwargs = {}
+    if 'S' in img.dims.order: kwargs['S'] = 0
+    if 'T' in img.dims.order: kwargs['T'] = 0
+    
+    dask_czyx = img.get_image_dask_data("CZYX", **kwargs)
     num_c = dask_czyx.shape[0]
     channels_data = []
     target_channels = [c for c in channels[:3] if c < num_c]
@@ -238,114 +242,143 @@ def main():
                 czi_by_species[species] = []
             czi_by_species[species].append(key)
             
-    selected_czi_keys = []
-    for sp, keys in czi_by_species.items():
-        if keys:
-            selected_czi_keys.append(random.choice(keys))
-            
-    print(f"🎲 Selected {len(selected_czi_keys)} CZI keys to dynamically download and process...")
+    print(f"🎲 Will attempt to dynamically process {len(czi_by_species)} species with fallback handling...")
     
-    for czi_key in selected_czi_keys:
-        filename = czi_key.split("/")[-1]
-        czi_path = root_dir / filename
-        
-        print(f"\n📥 Downloading {filename} from S3...")
-        s3.download_file(s3_bucket, czi_key, str(czi_path))
-        
-        species = None
-        for code in registry.keys():
-            if code.lower() in czi_path.name.lower():
-                species = code
-                break
-                
-        if not species:
-            # Fallback if the filename does not elegantly contain the species code
-            print(f"⚠️ Unknown species inside {czi_path.name}. Skipping!")
+    for sp, keys_for_species in czi_by_species.items():            
+        if not keys_for_species:
             continue
             
-        class_id = registry[species]
+        # Filter physically massive, completely corrupted CZIs from 20260227
+        # Sort explicitly in reverse to probabilistically guarantee orthogonal selections
+        valid_keys = [k for k in keys_for_species if '20260227' not in k]
         
-        if species not in stats:
-            stats[species] = {"images": 0, "annotations": 0, "negatives": 0}
+        # If the blocklist removes literally everything (unlikely), fallback seamlessly
+        if not valid_keys:
+            valid_keys = keys_for_species
             
-        # Ensure hierarchy boundaries
-        spec_img_dir = out_dir / species / "Images"
-        spec_lbl_dir = out_dir / species / "Labels"
-        spec_viz_dir = out_dir / species / "Vizualization"
+        import random
+        random.seed(4242)
+        random.shuffle(valid_keys)
+        keys_for_species = valid_keys
+        success_count = 0
         
-        spec_img_dir.mkdir(parents=True, exist_ok=True)
-        spec_lbl_dir.mkdir(parents=True, exist_ok=True)
-        spec_viz_dir.mkdir(parents=True, exist_ok=True)
-        
-        print(f"\n🪚 Extracting {czi_path.name}")
-        print(f"   -> Assigning class [{class_id}] ({species})")
-        
-        try:
-            img = AICSImage(str(czi_path))
-            rgb = get_mip_rgb(img)
+        for czi_key in keys_for_species:
+            filename = czi_key.split("/")[-1]
+            czi_path = root_dir / filename
             
-            n_tiles, n_hits, n_negs = 0, 0, 0
+            print(f"\n📥 Downloading {filename} from S3...")
+            s3.download_file(s3_bucket, czi_key, str(czi_path))
             
-            for tile, tx, ty in tile_image(rgb):
-                n_tiles += 1
-                stem = f"{species}_{czi_path.stem}_x{tx:06d}_y{ty:06d}"
+            species = sp
+            class_id = registry[species]
+            
+            if species not in stats:
+                stats[species] = {"images": 0, "annotations": 0, "negatives": 0}
                 
-                detections = extract_general_pollen(tile, model, args.conf)
+            # Ensure hierarchy boundaries
+            spec_img_dir = out_dir / species / "Images"
+            spec_lbl_dir = out_dir / species / "Labels"
+            spec_viz_dir = out_dir / species / "Vizualization"
+            
+            spec_img_dir.mkdir(parents=True, exist_ok=True)
+            spec_lbl_dir.mkdir(parents=True, exist_ok=True)
+            spec_viz_dir.mkdir(parents=True, exist_ok=True)
+            
+            print(f"\n🪚 Extracting {czi_path.name}")
+            print(f"   -> Assigning class [{class_id}] ({species})")
+            
+            try:
+                img = AICSImage(str(czi_path))
+                rgb = get_mip_rgb(img)
                 
-                # Render to Negatives gracefully
-                if len(detections) == 0:
+                # Verify that it didn't just load garbage that will crash silently later.
+                if len(rgb.shape) < 3 or rgb.shape[0] < 640 or rgb.shape[1] < 640:
+                    raise Exception(f"Invalid RGB Extracted: {rgb.shape}")
+
+                n_tiles, n_hits, n_negs = 0, 0, 0
+                
+                for tile, tx, ty in tile_image(rgb):
+                    n_tiles += 1
+                    stem = f"{species}_{czi_path.stem}_x{tx:06d}_y{ty:06d}"
+                    
+                    detections = extract_general_pollen(tile, model, args.conf)
+                    
+                    # Render to Negatives gracefully
+                    if len(detections) == 0:
+                        tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+                        cv2.imwrite(str(neg_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                        n_negs += 1
+                        stats[species]["negatives"] += 1
+                        continue
+                    
+                    # Valid Detections - Save to Positive Species Layout
+                    n_hits += 1
+                    stats[species]["images"] += 1
+                    stats[species]["annotations"] += len(detections)
+                    
+                    # 1. Image
                     tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(str(neg_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-                    n_negs += 1
-                    stats[species]["negatives"] += 1
-                    continue
-                
-                # Valid Detections - Save to Positive Species Layout
-                n_hits += 1
-                stats[species]["images"] += 1
-                stats[species]["annotations"] += len(detections)
-                
-                # 1. Image
-                tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
-                cv2.imwrite(str(spec_img_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-                
-                # 2. Labels mapped flawlessly to Species Class ID
-                lbl_lines = []
-                for d in detections:
-                    coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in d['poly_norm'])
-                    lbl_lines.append(f"{class_id} {coords}")
-                
-                (spec_lbl_dir / f"{stem}.txt").write_text("\n".join(lbl_lines))
-                
-                # 3. Vizualization (Tile-level Overlays)
-                viz_bgr = tile_bgr.copy()
-                overlay = viz_bgr.copy()
-                
-                for d in detections:
-                    poly_px = d['poly_px'].reshape((-1, 1, 2))
-                    # Purple fill with solid outline precisely around the boundary
-                    cv2.fillPoly(overlay, [poly_px], (200, 0, 200))
-                    cv2.polylines(overlay, [poly_px], True, (255, 0, 255), 2)
+                    cv2.imwrite(str(spec_img_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
                     
-                    # Print precisely over the tile
-                    text_str = f"{d['conf']:.2f}"
-                    px, py = poly_px[0][0]
-                    cv2.putText(overlay, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2, cv2.LINE_AA)
-                    cv2.putText(overlay, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+                    # 2. Labels mapped flawlessly to Species Class ID
+                    lbl_lines = []
+                    for d in detections:
+                        coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in d['poly_norm'])
+                        lbl_lines.append(f"{class_id} {coords}")
                     
-                # 0.4 Alpha transparency masking
-                viz_blended = cv2.addWeighted(overlay, 0.4, viz_bgr, 0.6, 0)
-                cv2.imwrite(str(spec_viz_dir / f"{stem}_viz.jpg"), viz_blended, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                    (spec_lbl_dir / f"{stem}.txt").write_text("\n".join(lbl_lines))
+                    
+                    # 3. Vizualization (Tile-level Overlays & CV Curve tracking)
+                    viz_bgr = tile_bgr.copy()
+                    
+                    for d in detections:
+                        poly_px = d['poly_px'].reshape((-1, 1, 2))
+                        
+                        mask = np.zeros(viz_bgr.shape[:2], dtype=np.uint8)
+                        cv2.fillPoly(mask, [poly_px], 255)
+                        
+                        hsv = cv2.cvtColor(viz_bgr, cv2.COLOR_BGR2HSV)
+                        S = hsv[:,:,1]
+                        
+                        S_blurred = cv2.GaussianBlur(S, (5, 5), 0)
+                        _, binary = cv2.threshold(S_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                        
+                        binary = cv2.bitwise_and(binary, binary, mask=mask)
+                        
+                        kernel = np.ones((5,5), np.uint8)
+                        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+                        
+                        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        if contours:
+                            largest_contour = max(contours, key=cv2.contourArea)
+                            epsilon = 0.003 * cv2.arcLength(largest_contour, True)
+                            smoothed_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
+                            cv2.polylines(viz_bgr, [smoothed_contour], True, (255, 0, 255), 2)
+                        else:
+                            cv2.polylines(viz_bgr, [poly_px], True, (255, 0, 255), 2)
+                        
+                        # Print explicitly over the tile
+                        text_str = f"{d['conf']:.2f}"
+                        px, py = d['poly_px'][0]
+                        cv2.putText(viz_bgr, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2, cv2.LINE_AA)
+                        cv2.putText(viz_bgr, text_str, (int(px) - 5, int(py) - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
+                        
+                    cv2.imwrite(str(spec_viz_dir / f"{stem}_viz.jpg"), viz_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                    
+                print(f"   ✓ Extracted {n_tiles} tiles -> {n_hits} Overlays | {n_negs} Negatives")
+                success_count += 1
                 
-            print(f"   ✓ Extracted {n_tiles} tiles -> {n_hits} Overlays | {n_negs} Negatives")
-            
-        except Exception as e:
-            print(f"  ❌ Error parsing {czi_path.name}: {e}")
-            
-        # Clean up the large CZI file immediately to save disk space
-        if czi_path.exists():
-            os.remove(str(czi_path))
-            print(f"   🧹 Removed temporary file {czi_path.name}")
+            except Exception as e:
+                print(f"  ❌ Error parsing {czi_path.name}: {e}")
+                print(f"  🔁 Attempting to load another candidate for {sp}...")
+                
+            # Clean up the large CZI file immediately to save disk space
+            if czi_path.exists():
+                os.remove(str(czi_path))
+                print(f"   🧹 Removed temporary file {czi_path.name}")
+                
+            if success_count >= 5:
+                break
 
     generate_stats_report(stats, out_dir, registry)
     print("\n🎉 Species Dataset Built Sucessfully!")

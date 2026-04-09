@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pollen-train-v3
+  name: pollen-train-species
   namespace: stenc-ns
 spec:
   securityContext:
@@ -10,61 +10,68 @@ spec:
       type: RuntimeDefault
   restartPolicy: Never
   containers:
-    - name: train-worker
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-            - ALL
-      image: ttl.sh/pollen-train-anti:1w
-      imagePullPolicy: Always
-      command:
-        - sh
-        - -c
-        - |
-          echo "Starting YOLOv8 Species Classification Training on natively mounted dataset..."
-          # Assuming the user places the data.yaml for species in the detect_images results
-          python3 /home/meow/Documents/Antigravity/Colorado_pollen_detection/src/train_species.py \
-            --data /home/meow/cesnet_cloud/bucket/PEG/Colorado/detection_results/data.yaml
-          
-          echo "Generating Email notification..."
-          python3 /scripts/notify.py --type training --job_name "YOLO Species Classifier" --results /home/meow/Documents/Antigravity/Colorado_pollen_detection/models/species_classifier/latest.pt
-      resources:
-        limits:
-          memory: "32Gi"
-          cpu: "8"
-        requests:
-          memory: "16Gi"
-          cpu: "4"
-      env:
-        - name: S3_ENDPOINT
-          value: "https://s3.cl4.du.cesnet.cz"
-        - name: S3_BUCKET
-          value: "bucket"
-        - name: AWS_ACCESS_KEY_ID
-          valueFrom:
-            secretKeyRef:
-              name: s3-credentials
-              key: access-key
-        - name: AWS_SECRET_ACCESS_KEY
-          valueFrom:
-            secretKeyRef:
-              name: s3-credentials
-              key: secret-key
-        - name: GMAIL_APP_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: email-credentials
-              key: GMAIL_APP_PASSWORD
-      volumeMounts:
-        - mountPath: /dev/shm
-          name: dshm
-        - mountPath: /scripts
-          name: scripts-vol
-        - mountPath: /home/meow/cesnet_cloud/bucket
-          name: s3-bucket-mount
-        - mountPath: /home/meow/Documents/Antigravity/Colorado_pollen_detection
-          name: project-mount
+        - name: train-worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Preparing container paths..."
+              mkdir -p /app/dataset_species /app/models/species_classifier
+              
+              echo "Downloading generated classification datasets via S3..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" /app/dataset_species/ --no-verify-ssl
+              
+              echo "Starting YOLOv8 Species Classification Training..."
+              export MODEL_DIR=/app/models/species_classifier/
+              
+              python3 /scripts/train_species.py --dataset /app/dataset_species
+              
+              echo "Uploading best weights to S3..."
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/models/species_classifier/*" "s3://$S3_BUCKET/PEG/Colorado/trained_models/species_classifier/"
+              
+              echo "Generating Email notification..."
+              python3 /notify/notify.py --type training --job_name "YOLO Species Classifier" --results /app/models/species_classifier/latest.pt
+          resources:
+            limits:
+              memory: "32Gi"
+              cpu: "8"
+              nvidia.com/gpu: "1"
+            requests:
+              memory: "16Gi"
+              cpu: "4"
+              nvidia.com/gpu: "1"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /notify
+              name: scripts-vol
   volumes:
     - name: dshm
       emptyDir:
@@ -72,10 +79,4 @@ spec:
         sizeLimit: "16Gi"
     - name: scripts-vol
       configMap:
-        name: train-v3-script
-    - name: s3-bucket-mount
-      hostPath:
-        path: /home/meow/cesnet_cloud/bucket
-    - name: project-mount
-      hostPath:
-        path: /home/meow/Documents/Antigravity/Colorado_pollen_detection
+        name: notify-script

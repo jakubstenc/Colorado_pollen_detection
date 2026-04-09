@@ -1,0 +1,76 @@
+---
+title: "Species Identification Workflow"
+description: "End-to-End Pipeline for Multi-Class Species Classification"
+---
+
+# Overview
+
+The original pollen detection pipeline handles generalized "pollen" tracking by treating everything equally as class `0`. The **Species Specific Pipeline** introduces a secondary Stage 2 Classification network allowing us to categorize up to 45 different species per sample recursively mapping to the `species_manifest.csv` ground truth.
+
+## Two-Stage Architecture
+Because creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:
+
+1. **Stage 1 Segmenter:** Locates arbitrary pollen grains rapidly.
+2. **Stage 2 Classifier:** Identifies the biological species directly from the bounded crops.
+
+---
+
+## 1. Crop Extraction & Dataset Formatting
+
+If you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using `extract_crops.py`.
+
+```bash
+python src/extract_crops.py \
+    --src Species_model/Training_data \
+    --out dataset_species \
+    --pad 0.1 \
+    --split 0.8
+```
+
+This transforms segmented masks directly into standard `dataset_species/train/<SpeciesCode>` ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks.
+
+---
+
+## 2. Training the Species Classifier
+
+Native image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging `yolov8n-cls` weights with heavily augmented sweeps:
+
+```bash
+python src/train_species.py --dataset dataset_species
+```
+*Outputs dynamically deploy to `models/species_classifier/latest.pt` ensuring recursive compatibility downstream.*
+
+---
+
+## 3. Routine Inference Pipeline
+
+The native `inference_species.py` script replaces `czi_ingest.py` when investigating novel, untouched samples.
+
+This script parses all raw `.czi` microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:
+```bash
+python src/inference_species.py \
+    --root /path/to/czi/scans \
+    --out ActiveLearning_Outputs \
+    --model-seg models/general_pollen/latest.pt \
+    --model-cls models/species_classifier/latest.pt
+```
+
+### Outputs Generated:
+- 📊 **`summary_results.csv`**: A dense table specifying exactly `[CZI_File, Tile, Species, Confidence, Area_um2]` summarizing massive biological volumes.
+- 🗺️ **`overview_{name}_labeled.jpg`**: A macro map detailing spatial distribution of every instance mapped by species!
+- 🗂️ **UI Dataset Format**: Saves instances logically grouped (`Images`, `Labels`, `Vizualization`) explicitly built for immediate manual feedback.
+
+---
+
+## 4. Active Iterative Feedback
+
+Our AI improves only via your oversight. Start the frontend interface to manually vet species derivations:
+```bash
+python active_learning_ui.py
+# → http://127.0.0.1:5001
+```
+
+Once in the inspector:
+1. Scan the visualized crops.
+2. If the predicted species is incorrect, select the biological ground-truth using the **"Correct Species Identity"** drop-down menu.
+3. Upon validating using **[Right Arrow]**, the framework will natively physically crop and drop that corrected target directly into `dataset_species_curated/train/<Species>` feeding seamlessly right back into Step 2 for the next cycle.

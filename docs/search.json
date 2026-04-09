@@ -49,6 +49,41 @@
     "text": "6 ⚙️ Species Dataset Configuration\nTo give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest.\nYou can freely inject, override, or classify new species targets (e.g. Gen_alg) by editing the src/species_manifest.csv file mapping directly inside this repository.\nThe Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions."
   },
   {
+    "objectID": "tutorials/ingestion.html",
+    "href": "tutorials/ingestion.html",
+    "title": "Ingestion Guide",
+    "section": "",
+    "text": "The CZI Ingestion Pipeline converts raw Zeiss .czi scans into 640x640 JPG tiles formatted for YOLO training."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#prerequisites",
+    "href": "tutorials/ingestion.html#prerequisites",
+    "title": "Ingestion Guide",
+    "section": "1 🏗️ Prerequisites",
+    "text": "1 🏗️ Prerequisites\nEnsure you have initialized the virtual environment:\npython3 -m venv .venv\nsource .venv/bin/activate\n# Use the IPv4 wrapper if you experience network hangs\npython3 pip_ipv4.py install -r requirements.txt"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#source-data-structure",
+    "href": "tutorials/ingestion.html#source-data-structure",
+    "title": "Ingestion Guide",
+    "section": "2 📂 Source Data Structure",
+    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Ran_ado/\n│   ├── Source/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n├── Ran_rep/\n│   └── ..."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#running-the-ingest",
+    "href": "tutorials/ingestion.html#running-the-ingest",
+    "title": "Ingestion Guide",
+    "section": "3 🛠️ Running the Ingest",
+    "text": "3 🛠️ Running the Ingest\n\n3.1 Option A: Kubernetes Cluster (S3 Upload)\nBest for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped .zip file archive to S3.\npython k8s/deploy_czi.sh\n\n\n3.2 Option B: Local Execution (Direct to Cloud Mount)\nBest for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.\n# Ensure you are using the virtual environment\nsource .venv/bin/activate\n\npython src/czi_ingest.py \\\n    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \\\n    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \\\n    --channels 0 1 2 \\\n    --grayscale\n\n\n3.3 Key Parameters\n\n\n\n\n\n\n\nFlag\nDescription\n\n\n\n\n--root\nDeepest root directory to scan for .czi files\n\n\n--out\nTarget directory for images, labels, and data.yaml\n\n\n--channels\nIndices of fluorescence channels to use for R, G, B\n\n\n--grayscale\nForces output to neutral grayscale instead of red (critical for manual Roboflow annotation)\n\n\n--split\nTrain/Val ratio (e.g. 0.8 = 80% training data)\n\n\n--dry-run\nPreview the file list without writing to disk"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#resolution-scaling",
+    "href": "tutorials/ingestion.html#resolution-scaling",
+    "title": "Ingestion Guide",
+    "section": "4 📐 Resolution & Scaling",
+    "text": "4 📐 Resolution & Scaling\nThe pipeline automatically extracts the PhysicalSizeX metadata from the CZI. This is crucial for: 1. Scaling measurements in the final analysis. 2. Filtering debris based on physical area (pollen grains are typically 10–100µm).\nCurrently, the Colorado scans processed show a resolution of ~0.88 µm/px."
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "Colorado Pollen Detection Pipeline",
@@ -84,38 +119,45 @@
     "text": "4 📖 Get Started\nCheck the following sections to get up and running:\n\nIngestion Tutorial: How to convert your first .czi folder.\nTraining: Set up GPU training using src/train_pollen.py.\nPseudo-Labeling: Auto-annotate tiles using src/pseudo_label.py.\n\n\nProject maintained by Jakub Štenc (CESNET / Prague)."
   },
   {
-    "objectID": "tutorials/ingestion.html",
-    "href": "tutorials/ingestion.html",
-    "title": "Ingestion Guide",
+    "objectID": "tutorials/species_pipeline.html",
+    "href": "tutorials/species_pipeline.html",
+    "title": "Species Identification Workflow",
     "section": "",
-    "text": "The CZI Ingestion Pipeline converts raw Zeiss .czi scans into 640x640 JPG tiles formatted for YOLO training."
+    "text": "The original pollen detection pipeline handles generalized “pollen” tracking by treating everything equally as class 0. The Species Specific Pipeline introduces a secondary Stage 2 Classification network allowing us to categorize up to 45 different species per sample recursively mapping to the species_manifest.csv ground truth.\n\n\nBecause creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops.\n\n\n\n\n\nIf you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks.\n\n\n\n\nNative image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream.\n\n\n\n\nThe native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback.\n\n\n\n\n\n\nOur AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Scan the visualized crops. 2. If the predicted species is incorrect, select the biological ground-truth using the “Correct Species Identity” drop-down menu. 3. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
   },
   {
-    "objectID": "tutorials/ingestion.html#prerequisites",
-    "href": "tutorials/ingestion.html#prerequisites",
-    "title": "Ingestion Guide",
-    "section": "1 🏗️ Prerequisites",
-    "text": "1 🏗️ Prerequisites\nEnsure you have initialized the virtual environment:\npython3 -m venv .venv\nsource .venv/bin/activate\n# Use the IPv4 wrapper if you experience network hangs\npython3 pip_ipv4.py install -r requirements.txt"
+    "objectID": "tutorials/species_pipeline.html#two-stage-architecture",
+    "href": "tutorials/species_pipeline.html#two-stage-architecture",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Because creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops."
   },
   {
-    "objectID": "tutorials/ingestion.html#source-data-structure",
-    "href": "tutorials/ingestion.html#source-data-structure",
-    "title": "Ingestion Guide",
-    "section": "2 📂 Source Data Structure",
-    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Ran_ado/\n│   ├── Source/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n├── Ran_rep/\n│   └── ..."
+    "objectID": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
+    "href": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "If you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks."
   },
   {
-    "objectID": "tutorials/ingestion.html#running-the-ingest",
-    "href": "tutorials/ingestion.html#running-the-ingest",
-    "title": "Ingestion Guide",
-    "section": "3 🛠️ Running the Ingest",
-    "text": "3 🛠️ Running the Ingest\n\n3.1 Option A: Kubernetes Cluster (S3 Upload)\nBest for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped .zip file archive to S3.\npython k8s/deploy_czi.sh\n\n\n3.2 Option B: Local Execution (Direct to Cloud Mount)\nBest for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.\n# Ensure you are using the virtual environment\nsource .venv/bin/activate\n\npython src/czi_ingest.py \\\n    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \\\n    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \\\n    --channels 0 1 2 \\\n    --grayscale\n\n\n3.3 Key Parameters\n\n\n\n\n\n\n\nFlag\nDescription\n\n\n\n\n--root\nDeepest root directory to scan for .czi files\n\n\n--out\nTarget directory for images, labels, and data.yaml\n\n\n--channels\nIndices of fluorescence channels to use for R, G, B\n\n\n--grayscale\nForces output to neutral grayscale instead of red (critical for manual Roboflow annotation)\n\n\n--split\nTrain/Val ratio (e.g. 0.8 = 80% training data)\n\n\n--dry-run\nPreview the file list without writing to disk"
+    "objectID": "tutorials/species_pipeline.html#training-the-species-classifier",
+    "href": "tutorials/species_pipeline.html#training-the-species-classifier",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Native image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream."
   },
   {
-    "objectID": "tutorials/ingestion.html#resolution-scaling",
-    "href": "tutorials/ingestion.html#resolution-scaling",
-    "title": "Ingestion Guide",
-    "section": "4 📐 Resolution & Scaling",
-    "text": "4 📐 Resolution & Scaling\nThe pipeline automatically extracts the PhysicalSizeX metadata from the CZI. This is crucial for: 1. Scaling measurements in the final analysis. 2. Filtering debris based on physical area (pollen grains are typically 10–100µm).\nCurrently, the Colorado scans processed show a resolution of ~0.88 µm/px."
+    "objectID": "tutorials/species_pipeline.html#routine-inference-pipeline",
+    "href": "tutorials/species_pipeline.html#routine-inference-pipeline",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "The native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#active-iterative-feedback",
+    "href": "tutorials/species_pipeline.html#active-iterative-feedback",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Our AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Scan the visualized crops. 2. If the predicted species is incorrect, select the biological ground-truth using the “Correct Species Identity” drop-down menu. 3. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
   }
 ]
