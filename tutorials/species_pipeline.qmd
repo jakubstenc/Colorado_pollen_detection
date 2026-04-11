@@ -89,6 +89,7 @@ python active_learning_ui.py
 ```
 
 Once in the inspector:
-1. Scan the visualized crops.
-2. If the predicted species is incorrect, select the biological ground-truth using the **"Correct Species Identity"** drop-down menu.
-3. Upon validating using **[Right Arrow]**, the framework will natively physically crop and drop that corrected target directly into `dataset_species_curated/train/<Species>` feeding seamlessly right back into Step 2 for the next cycle.
+1. Use the **"Filter by True Source Species"** dropdown. Because the UI natively parses your dataset against `species_manifest.csv`, it perfectly isolates your newest target crops dynamically (even if the model grouped them into the wrong predictive folder initially).
+2. Scan the visualized crops.
+3. The **"Correct Species Identity"** is automatically pre-filled for you natively from the source filename!
+4. Upon validating using **[Right Arrow]**, the framework will natively physically crop and drop that corrected target directly into `dataset_species_curated/train/<Species>` feeding seamlessly right back into Step 2 for the next cycle.

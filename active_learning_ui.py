@@ -56,6 +56,15 @@ def mark_as_reviewed(viz_path, action_type):
 
 undo_stack = []
 
+manifest_path = os.path.expanduser("~/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv")
+GLOBAL_SPECIES = []
+if os.path.exists(manifest_path):
+    with open(manifest_path, 'r') as f:
+        for line in f:
+            parts = line.strip().split(',')
+            if parts and parts[0] != 'species_code':
+                GLOBAL_SPECIES.append(parts[0])
+
 @app.route("/")
 def index():
     pending = get_pending_images()
@@ -64,6 +73,10 @@ def index():
     
     req_species = request.args.get("species", "")
     filtered_pending = [p for p in pending if f"/{req_species}/" in p] if req_species else pending
+    
+    req_target_species = request.args.get("target_species", "")
+    if req_target_species:
+        filtered_pending = [p for p in filtered_pending if req_target_species.lower() in os.path.basename(p).lower()]
     
     if not filtered_pending:
         filtered_pending = pending
@@ -82,6 +95,12 @@ def index():
     
     species_name = os.path.basename(species_dir)
     
+    target_override = species_name
+    for sp in GLOBAL_SPECIES:
+        if sp.lower() in base_stem.lower():
+            target_override = sp
+            break
+            
     labels_data = []
     if os.path.exists(lbl_path):
         with open(lbl_path, 'r') as f:
@@ -128,6 +147,9 @@ def index():
                                   base_stem=base_stem,
                                   all_species=all_species,
                                   req_species=req_species,
+                                  req_target_species=req_target_species,
+                                  target_override=target_override,
+                                  global_species=GLOBAL_SPECIES,
                                   idx=idx,
                                   undo_available=len(undo_stack) > 0)
 
@@ -322,11 +344,21 @@ HTML_TEMPLATE = """
         <h2>Data Inspector</h2>
         
         <div class="panel-section">
-            <div class="panel-label">Filter by Species</div>
-            <select id="species-select" onchange="changeSpecies()">
+            <div class="panel-label">Filter by Species Prediction</div>
+            <select id="species-select" onchange="applyFilters()">
                 <option value="">-- All Species --</option>
                 {% for sp in all_species %}
                 <option value="{{ sp }}" {% if req_species == sp %}selected{% endif %}>{{ sp }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="panel-section">
+            <div class="panel-label">Filter by True Source Species</div>
+            <select id="target-species-select" onchange="applyFilters()">
+                <option value="">-- All True Species (From Filename) --</option>
+                {% for sp in global_species %}
+                <option value="{{ sp }}" {% if req_target_species == sp %}selected{% endif %}>{{ sp }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -344,11 +376,13 @@ HTML_TEMPLATE = """
 
         <div class="panel-section">
             <div class="panel-label">Correct Species Identity</div>
-            <select id="override-species" style="background:#444; border-color:#2b78e4; font-weight:bold;">
-                {% for sp in all_species %}
-                <option value="{{ sp }}" {% if species_name == sp %}selected{% endif %}>{{ sp }}</option>
+            <input list="override-species-list" id="override-species" value="{{ target_override }}" style="width: 100%; box-sizing: border-box; padding: 10px; background:#444; color:white; border: 1px solid #2b78e4; border-radius: 5px; font-size: 16px; margin-top: 5px; font-weight:bold; outline:none;">
+            <datalist id="override-species-list">
+                {% for sp in global_species %}
+                <option value="{{ sp }}">
                 {% endfor %}
-            </select>
+            </datalist>
+            <div style="font-size:11px; color:#aaa; margin-top:4px;">(Auto-detected from Source Filename if match exists)</div>
         </div>
 
         <div class="panel-section">
@@ -429,16 +463,18 @@ HTML_TEMPLATE = """
         
         window.addEventListener('load', renderBoxes);
         
-        function changeSpecies() {
+        function applyFilters() {
             const sp = document.getElementById("species-select").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp);
+            const tsp = document.getElementById("target-species-select").value;
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp);
         }
         
         function navigate(dir) {
             let nextIdx = {{ idx }} + dir;
             if(nextIdx < 0) nextIdx = 0;
             const sp = document.getElementById("species-select").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp) + "&idx=" + nextIdx;
+            const tsp = document.getElementById("target-species-select").value;
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx=" + nextIdx;
         }
 
         function sendAction(action) {
@@ -458,7 +494,8 @@ HTML_TEMPLATE = """
                 })
             }).then(() => {
                 const sp = document.getElementById("species-select").value;
-                window.location.href = "/?species=" + encodeURIComponent(sp) + "&idx={{ idx }}";
+                const tsp = document.getElementById("target-species-select").value;
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx={{ idx }}";
             });
         }
 

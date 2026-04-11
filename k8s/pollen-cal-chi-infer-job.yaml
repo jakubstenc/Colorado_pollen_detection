@@ -1,0 +1,142 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-cal-chi-infer
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: s3-sync
+          image: amazon/aws-cli:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Synchronizing Cal_chi source files..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Cal_chi/" \
+                /mnt/czi_data/Cal_chi/ \
+                --no-verify-ssl
+                
+              echo "Downloading General Model..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" \
+                /mnt/model/general.pt \
+                --no-verify-ssl
+                
+              echo "Downloading Species Classifier..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/trained_models/species_classifier/latest.pt" \
+                /mnt/model/species.pt \
+                --no-verify-ssl
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "1"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      containers:
+        - name: infer-cal-chi
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              echo "Installing ephemeral dependencies..."
+              pip install --no-cache-dir awscli
+              
+              echo "Executing updated Species Inference pipeline on Cal_chi..."
+              python3 /app/inference_species.py \
+                --root /mnt/czi_data/Cal_chi \
+                --out /app/Inference_Results \
+                --model-seg /mnt/model/general.pt \
+                --model-cls /mnt/model/species.pt \
+                --manifest /app/species_manifest.csv
+                
+              echo "Uploading Results back to S3..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
+                /app/Inference_Results/ \
+                "s3://$S3_BUCKET/PEG/Colorado/Detected/Cal_chi_Inference_Results/" \
+                --no-verify-ssl
+                
+              echo "Upload complete!"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            limits:
+              memory: "32Gi"
+              cpu: "4"
+            requests:
+              memory: "16Gi"
+              cpu: "2"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /mnt/czi_data
+              name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "8Gi"
+        - name: scratch
+          emptyDir:
+            sizeLimit: "50Gi"
+        - name: model-vol
+          emptyDir:
+            sizeLimit: "2Gi"
+      restartPolicy: Never
+  backoffLimit: 0
