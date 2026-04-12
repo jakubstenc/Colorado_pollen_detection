@@ -10,11 +10,14 @@ WORKDIR /app
 
 # System packages needed by libCZI / Pillow / OpenCV
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget curl \
     libzstd-dev \
     libjpeg-dev \
     libpng-dev \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
+
+RUN wget -qO- https://github.com/peak/s5cmd/releases/download/v2.2.2/s5cmd_2.2.2_Linux-64bit.tar.gz | tar -xz -C /usr/local/bin/ s5cmd
 
 # Python packages
 RUN pip install --no-cache-dir \

@@ -1,20 +1,7 @@
-# k8s/pollen-czi-preprocess-job.yaml
-# Kubernetes job for CZI → YOLO tile extraction on CESNET (stenc-ns).
-#
-# Usage:
-#   # Set image name after docker push:
-#   sed 's|IMAGE_PLACEHOLDER|ttl.sh/pollen-czi-abc123:24h|g' \
-#       k8s/pollen-czi-preprocess-job.yaml | kubectl apply -f - --kubeconfig=kubeconfig.yaml -n stenc-ns
-#
-# The job will:
-#   1. Download source .czi files from S3 (or use PVC if available)
-#   2. Run czi_ingest.py to produce YOLO tiles + data.yaml
-#   3. Upload the zipped dataset to S3 staging_area/
-
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pollen-czi-preprocess
+  name: pollen-general-infer
   namespace: stenc-ns
 spec:
   template:
@@ -27,18 +14,22 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       initContainers:
-        # Init container: download .czi files from S3 before main job starts.
-        # Remove this block if .czi files are mounted via PVC.
         - name: s3-sync
           image: amazon/aws-cli:latest
           command:
             - sh
             - -c
             - |
+              echo "Synchronizing Target Source files..."
               aws --endpoint-url "$S3_ENDPOINT" s3 sync \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/Cal_chi/" \
-                /mnt/czi_data/Cal_chi/ \
-                --exclude "*" --include "*.czi" \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/$TARGET_SPECIES/" \
+                /mnt/czi_data/target/ \
+                --no-verify-ssl
+                
+              echo "Downloading General Model..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" \
+                /mnt/model/general.pt \
                 --no-verify-ssl
           securityContext:
             allowPrivilegeEscalation: false
@@ -56,6 +47,8 @@ spec:
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
+            - name: TARGET_SPECIES
+              value: "SPECIES_PLACEHOLDER"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -69,42 +62,46 @@ spec:
           volumeMounts:
             - mountPath: /mnt/czi_data
               name: scratch
+            - mountPath: /mnt/model
+              name: model-vol
       containers:
-        - name: czi-preprocessor
+        - name: infer-general
           image: IMAGE_PLACEHOLDER
           imagePullPolicy: Always
           command:
-            - python
-            - czi_ingest.py
-            - --root
-            - /mnt/czi_data
-            - --out
-            - /tmp/pollen_czi_color
-            - --channels
-            - "0"
-            - "1"
-            - "2"
-            - --z
-            - mip
-            - --overlap
-            - "0.20"
-            - --upload # auto-uploads zip to S3 staging_area/
+            - sh
+            - -c
+            - |
+              echo "Executing One-Stage General Inference Pipeline..."
+              python3 /app/inference_species.py \
+                --root /mnt/czi_data/target \
+                --out /app/Inference_Results \
+                --model-seg /mnt/model/general.pt
+                
+              echo "Uploading Results back to S3..."
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync \
+                "/app/Inference_Results/*" \
+                "s3://$S3_BUCKET/PEG/Colorado/Detected/${TARGET_SPECIES}_Inference_Results/"
+                
+              echo "Upload complete!"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           resources:
             limits:
-              memory: "64Gi" # 1 GB .czi → ~20 GB float MIP in RAM × 3 channels
-              cpu: "8"
-            requests:
               memory: "32Gi"
               cpu: "4"
+            requests:
+              memory: "16Gi"
+              cpu: "2"
           env:
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
+            - name: TARGET_SPECIES
+              value: "SPECIES_PLACEHOLDER"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -120,8 +117,8 @@ spec:
               name: dshm
             - mountPath: /mnt/czi_data
               name: scratch
-            - mountPath: /tmp
-              name: tmp
+            - mountPath: /mnt/model
+              name: model-vol
       volumes:
         - name: dshm
           emptyDir:
@@ -129,9 +126,9 @@ spec:
             sizeLimit: "8Gi"
         - name: scratch
           emptyDir:
-            sizeLimit: "200Gi" # Space for downloaded .czi + extracted tiles
-        - name: tmp
-          emptyDir:
             sizeLimit: "50Gi"
+        - name: model-vol
+          emptyDir:
+            sizeLimit: "2Gi"
       restartPolicy: Never
-  backoffLimit: 1
+  backoffLimit: 0

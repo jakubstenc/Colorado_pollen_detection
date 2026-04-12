@@ -36,4 +36,4 @@ sed "s|IMAGE_PLACEHOLDER|${IMAGE_NAME}|g" k8s/pollen-general-train-job.yaml | $K
 echo "─────────────────────────────────────────────────"
 echo "✅ Job successfully submitted!"
 echo "To monitor logs, run:"
-echo "kubectl logs -f job/pollen-train-general-v1 -n $NAMESPACE"
+echo "kubectl logs -f pod/pollen-train-general -n $NAMESPACE"
