@@ -76,9 +76,6 @@ spec:
             - sh
             - -c
             - |
-              echo "Installing ephemeral dependencies..."
-              pip install --no-cache-dir awscli
-              
               echo "Executing updated Species Inference pipeline on Cal_chi..."
               python3 /app/inference_species.py \
                 --root /mnt/czi_data/Cal_chi \
@@ -88,10 +85,9 @@ spec:
                 --manifest /app/species_manifest.csv
                 
               echo "Uploading Results back to S3..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
-                /app/Inference_Results/ \
-                "s3://$S3_BUCKET/PEG/Colorado/Detected/Cal_chi_Inference_Results/" \
-                --no-verify-ssl
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync \
+                "/app/Inference_Results/*" \
+                "s3://$S3_BUCKET/PEG/Colorado/Detected/Cal_chi_Inference_Results/"
                 
               echo "Upload complete!"
           securityContext:

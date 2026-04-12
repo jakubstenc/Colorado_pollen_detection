@@ -105,12 +105,15 @@ def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px
         if crop.shape[0] < 10 or crop.shape[1] < 10:
             continue
             
-        # Classify
-        cls_results = model_cls(crop, verbose=False)
-        top1_idx = int(cls_results[0].probs.top1)
-        top1_conf = float(cls_results[0].probs.top1conf)
-        
-        pred_species = registry.get(top1_idx, "Unknown")
+        if model_cls is not None:
+            cls_results = model_cls(crop, verbose=False)
+            top1_idx = int(cls_results[0].probs.top1)
+            top1_conf = float(cls_results[0].probs.top1conf)
+            pred_species = registry.get(top1_idx, "Unknown")
+        else:
+            top1_idx = 0
+            top1_conf = float(c_conf)
+            pred_species = "Pollen"
         
         # Normalize polygon back to 0-1 for saving labels explicitly
         norm_xy = mask_xy.copy().astype(float)
@@ -135,19 +138,20 @@ def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px
     return detections
 
 def main():
-    parser = argparse.ArgumentParser(description="Two-Stage Inference Pipeline for Species Specific Model")
+    parser = argparse.ArgumentParser(description="Inference Pipeline for Pollen (General or Two-Stage)")
     parser.add_argument("--root", required=True, help="Path to input CZI files")
     parser.add_argument("--out", required=True, help="Output directory for UI framework and overview maps")
     parser.add_argument("--model-seg", required=True, help="Path to best.pt general pollen segmentation model")
-    parser.add_argument("--model-cls", required=True, help="Path to best.pt species classification model")
+    parser.add_argument("--model-cls", required=False, help="Path to best.pt species classification model (optional)")
     parser.add_argument("--manifest", default="/home/meow/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv")
     args = parser.parse_args()
     
-    registry = load_species_manifest(args.manifest)
-    print(f"📋 Loaded {len(registry)} species from manifest.")
+    registry = load_species_manifest(args.manifest) if args.model_cls else {}
+    if registry:
+        print(f"📋 Loaded {len(registry)} species from manifest.")
     
     model_seg = YOLO(args.model_seg)
-    model_cls = YOLO(args.model_cls)
+    model_cls = YOLO(args.model_cls) if args.model_cls else None
     
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -251,20 +255,28 @@ def main():
                 px, py = d['poly_px'][0]
                 cv2.putText(viz_bgr, text, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
                 
-                # Draw on Overview image - thick red circles for microscopic visibility
+                # Draw on Overview image - detailed global polygons matching UI parity
+                global_poly = d['poly_px'].copy()
+                global_poly[:, 0] += tx
+                global_poly[:, 1] += ty
+                poly_scaled = (global_poly * scale_factor).astype(np.int32).reshape((-1, 1, 2))
+                
+                cv2.polylines(overview_overlay, [poly_scaled], True, (0, 0, 255), 2)
                 ocx, ocy = int(global_cx * scale_factor), int(global_cy * scale_factor)
-                cv2.circle(overview_overlay, (ocx, ocy), 15, (0, 0, 255), -1)
-                cv2.circle(overview_overlay, (ocx, ocy), 17, (0, 255, 255), 2)
-                cv2.putText(overview_overlay, text, (ocx + 20, ocy), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
-                cv2.putText(overview_overlay, text, (ocx + 20, ocy), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(overview_overlay, text, (ocx + 10, ocy), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2, cv2.LINE_AA)
+                cv2.putText(overview_overlay, text, (ocx + 10, ocy), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1, cv2.LINE_AA)
                 
             (sp_dir / "Labels" / f"{stem}.txt").write_text("\n".join(lbl_lines))
             cv2.imwrite(str(sp_dir / "Vizualization" / f"{stem}_viz.jpg"), viz_bgr)
             
         alpha = 0.4
         overview_blended = cv2.addWeighted(overview_overlay, alpha, overview_bgr, 1 - alpha, 0)
-        overview_path = current_out_dir / f"overview_{czi_path.stem}_labeled.jpg"
-        cv2.imwrite(str(overview_path), overview_blended, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        
+        overview_raw_path = current_out_dir / f"overview_{czi_path.stem}_raw.jpg"
+        overview_labeled_path = current_out_dir / f"overview_{czi_path.stem}_labeled.jpg"
+        
+        cv2.imwrite(str(overview_raw_path), overview_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        cv2.imwrite(str(overview_labeled_path), overview_blended, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
         # Save individual per-image detailed stat table
         if image_summaries:
@@ -291,7 +303,7 @@ def main():
         s3_bucket = os.environ.get('S3_BUCKET', 'bucket')
         s3_endpoint = os.environ.get('S3_ENDPOINT', 'https://s3.cl4.du.cesnet.cz')
         out_target = f"s3://{s3_bucket}/PEG/Colorado/Species_model/Trainig_data/"
-        os.system(f"aws --endpoint-url {s3_endpoint} s3 sync /app/Inference_Results/ {out_target} --no-verify-ssl > /dev/null 2>&1")
+        os.system(f"s5cmd --endpoint-url {s3_endpoint} --no-verify-ssl sync /app/Inference_Results/* {out_target} > /dev/null 2>&1")
         
     csv_path = out_dir / "master_results_summary.csv"
     if all_summaries:
