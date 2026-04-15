@@ -188,8 +188,11 @@ def main():
     parser.add_argument("--root", required=True, help="Directory containing raw CZI scans")
     parser.add_argument("--out", required=True, help="Path to Species_model/Trainig_data/ structure")
     parser.add_argument("--model", required=True, help="Path to the trained general_pollen model")
-    parser.add_argument("--conf", type=float, default=0.20, help="Confidence threshold to dictate positive vs negative")
+    parser.add_argument("--conf", type=float, default=0.20, help="Confidence threshold to dictates positive vs negative")
     parser.add_argument("--manifest", type=str, default="/app/species_manifest.csv", help="Path to species manifest CSV")
+    parser.add_argument("--species", type=str, default="ALL", help="Specific species to generate, or ALL")
+    parser.add_argument("--count", type=int, default=5, help="Number of files to extract per species")
+    parser.add_argument("--file", type=str, default=None, help="Specific CZI file to process (filename only)")
     args = parser.parse_args()
 
     root_dir = Path(args.root)
@@ -228,6 +231,16 @@ def main():
                 czi_keys.append(obj["Key"])
                 
     print(f"🔍 Found {len(czi_keys)} raw CZIs on S3.")
+
+    print("🌍 Fetching list of already processed CZI images from S3 staging area...")
+    processed_stems = set()
+    pages_processed = paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Species_model/Trainig_data/")
+    for page in pages_processed:
+        for obj in page.get("Contents", []):
+            if "/Images/" in obj["Key"]:
+                processed_stems.add(obj["Key"])
+    processed_joined = " ".join(processed_stems)
+    print(f"📦 Loaded metadata for previously extracted tiles to prevent duplication.")
     
     czi_by_species = {}
     for key in czi_keys:
@@ -238,6 +251,8 @@ def main():
                 species = code
                 break
         if species:
+            if args.species != "ALL" and species != args.species:
+                continue
             if species not in czi_by_species:
                 czi_by_species[species] = []
             czi_by_species[species].append(key)
@@ -245,6 +260,16 @@ def main():
     print(f"🎲 Will attempt to dynamically process {len(czi_by_species)} species with fallback handling...")
     
     for sp, keys_for_species in czi_by_species.items():            
+        if not keys_for_species:
+            continue
+            
+        if args.file:
+            keys_for_species = [k for k in keys_for_species if args.file in k]
+            if not keys_for_species:
+                continue
+                
+        # Filter out anything that has already been processed to avoid identical runs
+        keys_for_species = [k for k in keys_for_species if k.split("/")[-1].replace(".czi", "") not in processed_joined]
         if not keys_for_species:
             continue
             
@@ -257,7 +282,8 @@ def main():
             valid_keys = keys_for_species
             
         import random
-        random.seed(4242)
+        import time
+        random.seed(time.time())
         random.shuffle(valid_keys)
         keys_for_species = valid_keys
         success_count = 0
@@ -377,7 +403,7 @@ def main():
                 os.remove(str(czi_path))
                 print(f"   🧹 Removed temporary file {czi_path.name}")
                 
-            if success_count >= 5:
+            if success_count >= args.count:
                 break
 
     generate_stats_report(stats, out_dir, registry)

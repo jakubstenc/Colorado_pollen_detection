@@ -13,6 +13,7 @@ DEST_IMG_DIR = os.path.join(DEST_DIR, "images")
 DEST_LBL_DIR = os.path.join(DEST_DIR, "labels")
 
 CLS_DEST_DIR = os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/dataset_species_curated/train")
+STAGED_AREA_DIR = os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Staged_area/Species_curated")
 
 os.makedirs(DEST_IMG_DIR, exist_ok=True)
 os.makedirs(DEST_LBL_DIR, exist_ok=True)
@@ -21,7 +22,7 @@ pending_cache = None
 
 def get_pending_images():
     global pending_cache
-    if pending_cache is None:
+    if not pending_cache:
         print("⏳ Scraping metadata directory structure from S3... (this might take a few seconds initially)")
         all_viz = glob.glob(os.path.join(BASE_DIR, "**", "Vizualization", "*_viz.jpg"), recursive=True)
         pending_cache = sorted([v for v in all_viz if "/Reviewed/" not in v and "/Discarded/" not in v])
@@ -42,17 +43,25 @@ def mark_as_reviewed(viz_path, action_type):
     # Isolate Skipped objects into a Discarded directory per the user's request
     if action_type == "skip":
         target_folder_name = "Discarded"
+    elif action_type == "reject":
+        target_folder_name = "Negatives"
     else:
         target_folder_name = "Reviewed"
         
-    rev_dir = os.path.join(species_dir, target_folder_name)
+    species_name = os.path.basename(species_dir.rstrip('/'))
+    rev_dir = os.path.join(STAGED_AREA_DIR, species_name, target_folder_name)
     os.makedirs(os.path.join(rev_dir, "Images"), exist_ok=True)
     os.makedirs(os.path.join(rev_dir, "Labels"), exist_ok=True)
     os.makedirs(os.path.join(rev_dir, "Vizualization"), exist_ok=True)
     
     if os.path.exists(viz_path): shutil.move(viz_path, os.path.join(rev_dir, "Vizualization", os.path.basename(viz_path)))
     if os.path.exists(img_path): shutil.move(img_path, os.path.join(rev_dir, "Images", os.path.basename(img_path)))
-    if os.path.exists(lbl_path): shutil.move(lbl_path, os.path.join(rev_dir, "Labels", os.path.basename(lbl_path)))
+    if os.path.exists(lbl_path): 
+        target_lbl = os.path.join(rev_dir, "Labels", os.path.basename(lbl_path))
+        shutil.move(lbl_path, target_lbl)
+        if action_type == "reject":
+            # Exterminate hallucinated polygons strictly in the staging area memory
+            open(target_lbl, 'w').close()
 
 undo_stack = []
 
@@ -257,11 +266,14 @@ def action():
 
 def process_undo_bg(last, base_stem, dest_img_dir, dest_lbl_dir):
     species_dir = last["species_dir"]
+    species_name = os.path.basename(species_dir.rstrip('/'))
     
     if last["action"] == "skip":
-        rev_dir = os.path.join(species_dir, "Discarded")
+        rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Discarded")
+    elif last["action"] == "reject":
+        rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Negatives")
     else:
-        rev_dir = os.path.join(species_dir, "Reviewed")
+        rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Reviewed")
     
     # Restore from Reviewed/ cache natively back into the root queue
     rev_viz = os.path.join(rev_dir, "Vizualization", os.path.basename(last["viz_path"]))
@@ -405,9 +417,16 @@ HTML_TEMPLATE = """
             </div>
         </div>
         
-        <div class="nav-container">
+        <div class="nav-container" style="flex-wrap: wrap; gap: 10px; justify-content: center;">
             <button class="btn-nav" onclick="navigate(-1)">⬅ Previous Frame (Left Arrow)</button>
             <button class="btn-nav" onclick="navigate(1)">Next Frame ➡ (Up Arrow)</button>
+            
+            <div style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 5px; background: #2a2a2a; padding: 10px; border-radius: 8px;">
+                <span style="color:#aaa; font-size: 14px;">Jump to image:</span>
+                <input type="number" id="jump-idx" value="{{ idx + 1 }}" min="1" max="{{ remaining }}" style="width: 80px; padding: 8px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; text-align: center; font-size: 14px; outline: none;" onkeydown="if(event.key === 'Enter') jumpToIdx()">
+                <span style="color:#aaa; font-size: 14px;">of {{ remaining }}</span>
+                <button onclick="jumpToIdx()" style="background: #2b78e4; padding: 8px 15px; font-size: 14px; box-shadow: none; width: auto; color: white; border: none; border-radius: 6px; cursor: pointer;">GO</button>
+            </div>
         </div>
         
         <div class="controls" style="margin-top:25px;">
@@ -467,6 +486,16 @@ HTML_TEMPLATE = """
             const sp = document.getElementById("species-select").value;
             const tsp = document.getElementById("target-species-select").value;
             window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp);
+        }
+        
+        function jumpToIdx() {
+            const val = parseInt(document.getElementById("jump-idx").value, 10);
+            if (!isNaN(val) && val >= 1) {
+                const nextIdx = val - 1;
+                const sp = document.getElementById("species-select").value;
+                const tsp = document.getElementById("target-species-select").value;
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx=" + nextIdx;
+            }
         }
         
         function navigate(dir) {

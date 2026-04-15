@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pollen-general-infer
+  name: pollen-single-infer
   namespace: stenc-ns
 spec:
   template:
@@ -20,9 +20,10 @@ spec:
             - sh
             - -c
             - |
-              echo "Synchronizing Target Source files..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/$TARGET_SPECIES/" \
+              echo "Downloading Single Target Source CZI..."
+              mkdir -p /mnt/czi_data/target/
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Gen_alg/20260226_206_Gen_Alg_22_7_2_Colorado2025-greenBox.czi" \
                 /mnt/czi_data/target/ \
                 --no-verify-ssl
                 
@@ -47,8 +48,6 @@ spec:
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
-            - name: TARGET_SPECIES
-              value: "SPECIES_PLACEHOLDER"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -65,7 +64,7 @@ spec:
             - mountPath: /mnt/model
               name: model-vol
       containers:
-        - name: infer-general
+        - name: infer-single
           image: IMAGE_PLACEHOLDER
           imagePullPolicy: Always
           command:

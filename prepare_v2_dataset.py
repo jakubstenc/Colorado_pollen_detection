@@ -10,7 +10,8 @@ def setup_v2_dataset():
     Automatically handles 80/10/10 train/val/test splits and generates a YOLO data.yaml.
     """
     v1_dir = Path("dataset_general_v1")
-    retrain_dir = Path(os.path.expanduser("~/Desktop/Retrain_Dataset"))
+    retrain_dir = Path(os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Curated_Retrain_Data"))
+    staged_neg_dir = Path(os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives"))
     v2_dir = Path("dataset_general_v2")
     
     if not v1_dir.exists():
@@ -34,42 +35,52 @@ def setup_v2_dataset():
         for f in glob.glob(str(v1_dir / s / "labels" / "*.txt")):
             shutil.copy(f, v2_dir / s / "labels" / os.path.basename(f))
             
-    print("🔍 Harvesting Active Learning Curation...")
+    print("🔍 Harvesting Active Learning Curation & Manual Negatives...")
     new_images = glob.glob(str(retrain_dir / "images" / "*.jpg"))
+    neg_images = glob.glob(str(staged_neg_dir / "*.jpg")) + glob.glob(str(staged_neg_dir / "*.jpeg")) + glob.glob(str(staged_neg_dir / "*.png"))
     
-    if not new_images:
-        print("💡 No new images found in Retrain_Dataset. Waiting for you to review some images using the UI!")
+    all_new_images = new_images + neg_images
+    
+    if not all_new_images:
+        print("💡 No new images found in Curated_Retrain_Data or Staged_negatives. Waiting for you to review some images using the UI!")
         return
         
     # Split the NEW images 80/10/10
     random.seed(42)
-    random.shuffle(new_images)
+    random.shuffle(all_new_images)
     
-    n = len(new_images)
+    n = len(all_new_images)
     train_split = int(n * 0.8)
     val_split = int(n * 0.9)
     
-    train_imgs = new_images[:train_split]
-    val_imgs = new_images[train_split:val_split]
-    test_imgs = new_images[val_split:]
+    train_imgs = all_new_images[:train_split]
+    val_imgs = all_new_images[train_split:val_split]
+    test_imgs = all_new_images[val_split:]
     
     def transfer_split(imgs, split_name):
         for img_path in imgs:
-            base = os.path.basename(img_path)
-            stem = base.replace(".jpg", "")
-            lbl_path = retrain_dir / "labels" / f"{stem}.txt"
+            img_path = Path(img_path)
+            base = img_path.name
+            stem = img_path.stem
             
-            shutil.copy(img_path, v2_dir / split_name / "images" / base)
+            shutil.copy(str(img_path), v2_dir / split_name / "images" / base)
             
-            # Label might be missing natively if background? UI creates empty files, so it will exist.
-            if lbl_path.exists():
-                shutil.copy(lbl_path, v2_dir / split_name / "labels" / f"{stem}.txt")
+            dest_lbl = v2_dir / split_name / "labels" / f"{stem}.txt"
+            if str(retrain_dir) in str(img_path):
+                lbl_path = retrain_dir / "labels" / f"{stem}.txt"
+                if lbl_path.exists():
+                    shutil.copy(str(lbl_path), dest_lbl)
+                else:
+                    dest_lbl.touch()
+            else:
+                # It's a manual negative background image
+                dest_lbl.touch()
                 
     transfer_split(train_imgs, "train")
     transfer_split(val_imgs, "val")
     transfer_split(test_imgs, "test")
     
-    print(f"📦 Successfully infused {len(train_imgs)} Train | {len(val_imgs)} Val | {len(test_imgs)} Test active-learning samples!")
+    print(f"📦 Successfully infused {len(train_imgs)} Train | {len(val_imgs)} Val | {len(test_imgs)} Test active/manual samples!")
 
     # Generate data.yaml
     yaml_content = f"""path: dataset_general_v2
