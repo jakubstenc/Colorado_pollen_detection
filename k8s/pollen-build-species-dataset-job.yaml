@@ -55,7 +55,7 @@ spec:
               name: model-vol
       containers:
         - name: dataset-builder
-          image: ttl.sh/pollen-species-builder:v9
+          image: ttl.sh/pollen-species-builder:12h
           imagePullPolicy: Always
           command:
             - sh
@@ -67,7 +67,8 @@ spec:
                 --root /mnt/czi_data \
                 --out /app/Trainig_data \
                 --model /mnt/model/best.pt \
-                --conf 0.15
+                --conf 0.15 \
+                --count 5
                 
               echo "Uploading generated Species Datasets and Stats to S3..."
               s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/Trainig_data/*" "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/"
@@ -90,6 +91,8 @@ spec:
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
+            - name: S3_PREFIX
+              value: "PEG/Colorado"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

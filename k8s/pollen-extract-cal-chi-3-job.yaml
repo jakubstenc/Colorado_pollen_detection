@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: pollen-general-infer
+  name: pollen-extract-cal-chi-3
   namespace: stenc-ns
 spec:
   template:
@@ -14,41 +14,30 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       initContainers:
-        - name: s3-sync
+        - name: download-data
           image: amazon/aws-cli:latest
           command:
             - sh
             - -c
             - |
-              echo "Synchronizing Target Source files..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/$TARGET_SPECIES/" \
-                /mnt/czi_data/target/ \
-                --no-verify-ssl
-                
-              echo "Downloading General Model..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 cp \
-                "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" \
-                /mnt/model/general.pt \
-                --no-verify-ssl
+              echo "Downloading general_pollen model..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/latest.pt" /mnt/model/best.pt --no-verify-ssl
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           resources:
             requests:
-              cpu: "1"
-              memory: "1Gi"
-            limits:
               cpu: "2"
-              memory: "2Gi"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
           env:
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
-            - name: TARGET_SPECIES
-              value: "SPECIES_PLACEHOLDER"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -65,40 +54,46 @@ spec:
             - mountPath: /mnt/model
               name: model-vol
       containers:
-        - name: infer-general
+        - name: dataset-builder
           image: IMAGE_PLACEHOLDER
           imagePullPolicy: Always
           command:
             - sh
             - -c
             - |
-              set -e
-              echo "Executing Native General Inference Pipeline..."
-              python3 /app/inference_species.py \
-                --root /mnt/czi_data/target \
-                --out /app/Inference_Results \
-                --model-seg /mnt/model/general.pt \
-                --force-species "${TARGET_SPECIES}"
+              echo "Starting Species Dataset Builder..."
+              mkdir -p /app/Trainig_data
+              python3 /app/build_species_dataset.py \
+                --root /mnt/czi_data \
+                --out /app/Trainig_data \
+                --model /mnt/model/best.pt \
+                --conf 0.15 \
+                --species Cal_chi \
+                --count 3
                 
-              echo "Uploads strictly confirmed by native Python Boto3 tracker!"
+              echo "Uploading generated Species Datasets and Stats to S3..."
+              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/Trainig_data/*" "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/"
+              
+              echo "Sending notification email..."
+              python3 /app/notify.py --type training --job_name "Species Dataset Builder"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           resources:
             limits:
+              memory: "64Gi"
+              cpu: "8"
+            requests:
               memory: "32Gi"
               cpu: "4"
-            requests:
-              memory: "16Gi"
-              cpu: "2"
           env:
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET
               value: "bucket"
-            - name: TARGET_SPECIES
-              value: "SPECIES_PLACEHOLDER"
+            - name: S3_PREFIX
+              value: "PEG/Colorado"
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
@@ -109,6 +104,11 @@ spec:
                 secretKeyRef:
                   name: s3-credentials
                   key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
@@ -120,12 +120,12 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: "8Gi"
+            sizeLimit: "32Gi"
         - name: scratch
           emptyDir:
-            sizeLimit: "50Gi"
+            sizeLimit: "100Gi"
         - name: model-vol
           emptyDir:
-            sizeLimit: "2Gi"
+            sizeLimit: "1Gi"
       restartPolicy: Never
-  backoffLimit: 0
+  backoffLimit: 1

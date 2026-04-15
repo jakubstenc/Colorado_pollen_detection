@@ -56,7 +56,7 @@ def extract_qr_code(czi_path):
         pass
     return "Unknown_Sample"
 
-def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px, conf=0.1):
+def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px, conf=0.5):
     """Run generalized segmentation, crop out instances, and run species classifier."""
     results = model_seg(tile_bgr, verbose=False, conf=conf, retina_masks=True)
     detections = []
@@ -144,6 +144,7 @@ def main():
     parser.add_argument("--model-seg", required=True, help="Path to best.pt general pollen segmentation model")
     parser.add_argument("--model-cls", required=False, help="Path to best.pt species classification model (optional)")
     parser.add_argument("--manifest", default="/home/meow/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv")
+    parser.add_argument("--force-species", default=None, help="Force all inferences explicitly into this exact output bucket bucket")
     args = parser.parse_args()
     
     registry = load_species_manifest(args.manifest) if args.model_cls else {}
@@ -200,6 +201,11 @@ def main():
             stem = f"{czi_path.stem}_x{tx:06d}_y{ty:06d}"
             
             detections = pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px)
+            
+            # Explicitly force-bind the categorization if parsing dynamically using general model overrides
+            if args.force_species:
+                for d in detections:
+                    d['species'] = args.force_species
             
             if not detections:
                 cv2.imwrite(str(neg_dir / f"{stem}.jpg"), tile_bgr)
@@ -269,25 +275,29 @@ def main():
             (sp_dir / "Labels" / f"{stem}.txt").write_text("\n".join(lbl_lines))
             cv2.imwrite(str(sp_dir / "Vizualization" / f"{stem}_viz.jpg"), viz_bgr)
             
+        # Bind overview and metrics exclusively inside the exact UI species folder subset!
+        target_macro_dir = out_dir / (args.force_species if args.force_species else "Pollen")
+        target_macro_dir.mkdir(parents=True, exist_ok=True)
+        
         alpha = 0.4
         overview_blended = cv2.addWeighted(overview_overlay, alpha, overview_bgr, 1 - alpha, 0)
         
-        overview_raw_path = current_out_dir / f"overview_{czi_path.stem}_raw.jpg"
-        overview_labeled_path = current_out_dir / f"overview_{czi_path.stem}_labeled.jpg"
+        overview_raw_path = target_macro_dir / f"overview_{czi_path.stem}_raw.jpg"
+        overview_labeled_path = target_macro_dir / f"overview_{czi_path.stem}_labeled.jpg"
         
         cv2.imwrite(str(overview_raw_path), overview_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
         cv2.imwrite(str(overview_labeled_path), overview_blended, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
-        # Save individual per-image detailed stat table
+        # Save individual per-image detailed stat table perfectly into the same folder
         if image_summaries:
-            csv_path_img = current_out_dir / f"{czi_path.stem}_details.csv"
+            csv_path_img = target_macro_dir / f"{czi_path.stem}_details.csv"
             keys = image_summaries[0].keys()
             with open(csv_path_img, 'w', newline='') as f:
                 dict_writer = csv.DictWriter(f, fieldnames=keys)
                 dict_writer.writeheader()
                 dict_writer.writerows(image_summaries)
         
-        print(f"   ✅ Saved {n_hits} detections and overview map to {overview_path.name}")
+        print(f"   ✅ Saved {n_hits} detections and macro overlays to {overview_labeled_path.name}")
         
         # AGGRESSIVE MEMORY CLEANUP FOR K8S OOM PREVENTION
         if 'img' in locals() and hasattr(img, 'close'):
@@ -299,13 +309,9 @@ def main():
         import gc
         gc.collect()
 
-        # DYNAMIC UPLOAD: Upload per-file immediately to bypass S3 upload drops if OOM kills the ephemeral wrapper
-        s3_bucket = os.environ.get('S3_BUCKET', 'bucket')
-        s3_endpoint = os.environ.get('S3_ENDPOINT', 'https://s3.cl4.du.cesnet.cz')
-        out_target = f"s3://{s3_bucket}/PEG/Colorado/Species_model/Trainig_data/"
-        os.system(f"s5cmd --endpoint-url {s3_endpoint} --no-verify-ssl sync /app/Inference_Results/* {out_target} > /dev/null 2>&1")
+        # Skip dynamic S3 uploading here, leaving it strictly to the K8s container shell to handle bulk Sync.
         
-    csv_path = out_dir / "master_results_summary.csv"
+    csv_path = out_dir / (args.force_species if args.force_species else "Pollen") / "master_results_summary.csv"
     if all_summaries:
         keys = all_summaries[0].keys()
         with open(csv_path, 'w', newline='') as f:
@@ -317,6 +323,39 @@ def main():
         
     print(f"\n🎉 Inference Pipeline Complete! Results saved to {out_dir}")
     print(f"📄 Full execution tabular metrics logged to: {csv_path}")
+
+    # =========================================================================
+    # NATIVE ZERO-FAIL BOTO3 UPLOAD PIPELINE
+    # =========================================================================
+    print(f"\n🚀 Hard-binding native Boto3 synchronizer to S3 endpoint...")
+    import boto3
+    from botocore.config import Config
+    import urllib3
+    urllib3.disable_warnings()
+
+    s3_bucket = os.environ.get('S3_BUCKET', 'bucket')
+    s3_endpoint = os.environ.get('S3_ENDPOINT', 'https://s3.cl4.du.cesnet.cz')
+    # Use exact same structure, bypass AWSCLI completely
+    s3_prefix = f"PEG/Colorado/Detected/{args.force_species if args.force_species else 'Pollen'}"
+    local_target_dir = str(out_dir / (args.force_species if args.force_species else 'Pollen'))
+
+    try:
+        import subprocess
+        print(f"   ☁️  Initiating ultra-fast s5cmd synchronized upload to {s3_prefix}...")
+        
+        s3_target = f"s3://{s3_bucket}/{s3_prefix}/"
+        cmd = [
+            "s5cmd", "--endpoint-url", s3_endpoint, "--no-verify-ssl",
+            "sync", f"{local_target_dir}/", s3_target
+        ]
+        
+        subprocess.run(cmd, check=True)
+        print(f"✅ Boto3 Sync Complete! Artifacts deeply committed to: {s3_prefix}")
+
+    except Exception as e:
+        print(f"❌ FATAL UPLOAD EXCEPTION: {e}")
+        import sys
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

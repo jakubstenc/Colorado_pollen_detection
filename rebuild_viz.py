@@ -4,9 +4,9 @@ import numpy as np
 from pathlib import Path
 
 def redraw_visualizations():
-    base_dir = Path.home() / "Desktop" / "Species_model"
+    base_dir = Path.home() / "cesnet_cloud" / "bucket" / "PEG" / "Colorado" / "Species_model" / "Trainig_data"
     if not base_dir.exists():
-        print("Desktop directory does not exist yet.")
+        print("Trainig_data directory does not exist yet.")
         return
         
     for species_dir in base_dir.iterdir():
