@@ -1,6 +1,6 @@
 ---
-title: "Colorado Pollen Production Simulation: Gen_alg Timeline"
-description: "Visualizes the temporal distribution of total pollen detections directly connected to the 'Produkce' master collection logs."
+title: "Colorado Pollen Production Simulation: Multi-Species Timeline"
+description: "Visualizes the temporal distribution of total pollen detections directly connected to the 'Produkce' master collection logs across differing plant species runs."
 format:
   html:
     theme: cosmo
@@ -14,45 +14,55 @@ execute:
 jupyter: python3
 ---
 
-## Overall Trend
-The data was matched up seamlessly via normalizing the collection codes and tracking extraction distributions over time. 
+## Multi-Species Trend Over Time
+The data has dynamically parsed detection counts for both `Gen_alg` and `Ran_ado` datasets using native indexing logic directly to the Excel dataset.
 
 ```{python}
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 
 df = pd.read_csv('results/Gen_alg_summary.csv')
 df['Collection_Date'] = pd.to_datetime(df['Collection_Date'])
 
-# Create an interactive responsive line timeline grouping by date to show the mean and std
-df_grouped = df.groupby('Collection_Date')['Detections'].agg(['mean', 'std']).reset_index()
+# Create an interactive responsive line timeline grouping by date and species
+df_grouped = df.groupby(['Collection_Date', 'Species'])['Detections'].agg(['mean', 'std']).reset_index()
 df_grouped['upper'] = df_grouped['mean'] + df_grouped['std'].fillna(0)
-df_grouped['lower'] = df_grouped['mean'] - df_grouped['std'].fillna(0)
+df_grouped['lower'] = (df_grouped['mean'] - df_grouped['std'].fillna(0)).clip(lower=0)
 
 fig = go.Figure()
 
-# Add lower and upper bound with a filled polynomial polygon
-fig.add_trace(go.Scatter(
-    x=df_grouped['Collection_Date'].tolist() + df_grouped['Collection_Date'].tolist()[::-1],
-    y=df_grouped['upper'].tolist() + df_grouped['lower'].tolist()[::-1],
-    fill='toself',
-    fillcolor='rgba(0,100,255,0.2)',
-    line=dict(color='rgba(255,255,255,0)'),
-    hoverinfo="skip",
-    showlegend=False
-))
+colors = {
+    'Gen_alg': ('blue', 'rgba(0,100,255,0.2)'),
+    'Ran_ado': ('#e6005c', 'rgba(230,0,92,0.2)')
+}
 
-# Add mean line
-fig.add_trace(go.Scatter(
-    x=df_grouped['Collection_Date'],
-    y=df_grouped['mean'],
-    mode='lines+markers',
-    name='Average',
-    line=dict(color='blue')
-))
+for sp in df_grouped['Species'].unique():
+    sp_df = df_grouped[df_grouped['Species'] == sp]
+    line_col, fill_col = colors.get(sp, ('green', 'rgba(0,255,0,0.2)'))
+    
+    # Add lower and upper bound with a filled polynomial polygon
+    fig.add_trace(go.Scatter(
+        x=sp_df['Collection_Date'].tolist() + sp_df['Collection_Date'].tolist()[::-1],
+        y=sp_df['upper'].tolist() + sp_df['lower'].tolist()[::-1],
+        fill='toself',
+        fillcolor=fill_col,
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo="skip",
+        showlegend=False
+    ))
+    
+    # Add mean line
+    fig.add_trace(go.Scatter(
+        x=sp_df['Collection_Date'],
+        y=sp_df['mean'],
+        mode='lines+markers',
+        name=f'{sp} Average',
+        line=dict(color=line_col)
+    ))
 
 fig.update_layout(
-    title='Average Pollen Detections Over Collection Dates (with Variance Polygon)',
+    title='Comparative Pollen Detections Over Collection Dates',
     xaxis_title='Date of Collection',
     yaxis_title='Average Pollen Count',
     margin=dict(l=20, r=20, t=40, b=20), autosize=True
@@ -60,26 +70,27 @@ fig.update_layout(
 fig.show()
 ```
 
-## Specimen Distribution
+## Specimen Variance Distribution
 
 ```{python}
 import plotly.express as px
 
-fig2 = px.box(df, x='Collection_Date', y='Detections', points="all",
-              title='Pollen Detections Variance Per Collection Date',
+fig2 = px.box(df, x='Collection_Date', y='Detections', color='Species', points="all",
+              color_discrete_map={'Gen_alg': 'blue', 'Ran_ado': '#e6005c'},
+              title='Pollen Detections Variance Per Collection Date (Species Indexed)',
               hover_data=['kod kytky + datum', 'Original_File'])
 fig2.update_layout(xaxis_title='Date of Collection', yaxis_title='Pollen Count',
                    margin=dict(l=20, r=20, t=40, b=20), autosize=True)
 fig2.show()
 ```
 
-## Detailed Metrics Array
+## Raw Tabular Metrics
 
 ```{python}
 from IPython.display import display, HTML
 
 # Select a subset of highly relevant columns for presentation
-df_display = df[['kod kytky + datum', 'Collection_Date', 'Detections', 'barvivo [μl]', 'na sklíčko [μ]']].copy()
+df_display = df[['kod kytky + datum', 'Species', 'Collection_Date', 'Detections', 'barvivo [μl]', 'na sklíčko [μ]']].copy()
 df_display['Collection_Date'] = df_display['Collection_Date'].dt.strftime('%Y-%m-%d')
 df_display.rename(columns={'kod kytky + datum': 'Excel Sample Code'}, inplace=True)
 

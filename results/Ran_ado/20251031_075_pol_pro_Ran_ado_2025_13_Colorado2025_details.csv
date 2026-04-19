@@ -1,0 +1,3 @@
+Sample_ID,CZI_File,Species,Area_um2,Centroid_X,Centroid_Y,Width_px,Height_px,Perimeter_px,Confidence,Tile
+Unknown_Sample,20251031_075_pol_pro_Ran_ado_2025_13_Colorado2025.czi,Ran_ado,288.2,12879.0,17396.0,22,21,73.21,0.648,20251031_075_pol_pro_Ran_ado_2025_13_Colorado2025_x012288_y016896
+Unknown_Sample,20251031_075_pol_pro_Ran_ado_2025_13_Colorado2025.czi,Ran_ado,287.43,12879.0,17396.0,22,21,73.21,0.595,20251031_075_pol_pro_Ran_ado_2025_13_Colorado2025_x012800_y016896
