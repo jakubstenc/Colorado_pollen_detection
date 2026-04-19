@@ -29,3 +29,5 @@ kubectl
 !.github/**/*.yml
 !src/**/*.py
 !k8s/**/*.yaml
+
+results/Gen_alg/master_results_summary.csv

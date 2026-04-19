@@ -1,0 +1,8 @@
+Sample_ID,CZI_File,Species,Area_um2,Centroid_X,Centroid_Y,Width_px,Height_px,Perimeter_px,Confidence,Tile
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,1973.52,4804.0,7538.0,60,55,191.44,0.598,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x004608_y007168
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,639.88,785.0,8793.0,36,30,111.01,0.805,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x000512_y008192
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,634.5,785.0,8793.0,36,30,111.01,0.792,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x000512_y008704
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,353.99,520.0,15019.0,24,24,80.28,0.535,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x000000_y014848
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,305.13,521.0,15019.0,21,23,76.38,0.721,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x000512_y014848
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,1115.85,11417.0,17509.0,45,40,149.74,0.811,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x011264_y016896
+Unknown_Sample,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox.czi,Gen_alg,203.55,17082.0,18048.0,18,18,61.56,0.758,20260227_317_Gen_Alg_20_8_3_Colorado2025-greenBox_x016896_y017920
