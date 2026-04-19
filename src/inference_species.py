@@ -179,9 +179,13 @@ def main():
         sample_id = extract_qr_code(czi_path)
         print(f"   🏷️ Sample ID (QR): {sample_id} | Relative Path: {rel_path}")
         
-        img = AICSImage(str(czi_path))
-        ps = img.physical_pixel_sizes
-        scale_um_px = float(ps.X) if ps.X else None
+        try:
+            img = AICSImage(str(czi_path))
+            ps = img.physical_pixel_sizes
+            scale_um_px = float(ps.X) if ps.X else None
+        except Exception as e:
+            print(f"   ❌ Corrupt or unsupported CZI structure detected: skipping this file. ({e})")
+            continue
         
         rgb = czi_ingest.get_mip_rgb(img, channels=[0, 1, 2])
         
