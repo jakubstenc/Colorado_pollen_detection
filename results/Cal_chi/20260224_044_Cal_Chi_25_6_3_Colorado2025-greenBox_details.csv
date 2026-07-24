@@ -1,0 +1,13 @@
+Sample_ID,CZI_File,Species,Area_um2,Centroid_X,Centroid_Y,Width_px,Height_px,Perimeter_px,Confidence,Tile
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,137.75,2527.0,1598.0,13,17,51.31,0.78,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x002048_y001024
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,240.49,6511.0,1503.0,20,20,67.21,0.636,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x006144_y001024
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,137.75,2527.0,1598.0,13,17,51.31,0.83,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x002048_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,91.96,4657.0,1643.0,12,13,41.9,0.862,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x004096_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,215.09,4681.0,1543.0,25,15,68.38,0.716,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x004096_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,91.96,4657.0,1643.0,12,13,41.9,0.845,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x004608_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,225.86,4681.0,1542.0,25,15,69.56,0.706,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x004608_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,320.9,5491.0,2040.0,23,22,75.46,0.934,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x005120_y001536
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,248.18,3796.0,2353.0,20,20,68.38,0.936,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x003584_y002048
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,215.86,2212.0,2814.0,19,19,64.38,0.623,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x002048_y002560
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,193.93,9446.0,17897.0,18,18,60.97,0.72,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x009216_y017408
+Unknown_Sample,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox.czi,Cal_chi,75.8,10560.0,17726.0,11,12,37.9,0.504,20260224_044_Cal_Chi_25_6_3_Colorado2025-greenBox_x010240_y017408

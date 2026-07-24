@@ -187,7 +187,13 @@ def main():
             print(f"   ❌ Corrupt or unsupported CZI structure detected: skipping this file. ({e})")
             continue
         
-        rgb = czi_ingest.get_mip_rgb(img, channels=[0, 1, 2])
+        try:
+            rgb = czi_ingest.get_mip_rgb(img, channels=[0, 1, 2])
+        except Exception as e:
+            print(f"   ❌ Corrupt or unreadable CZI pixel data structure detected: skipping this file. ({e})")
+            if hasattr(img, 'close'):
+                img.close()
+            continue
         
         # Build Overview Maps
         H_orig, W_orig = rgb.shape[:2]

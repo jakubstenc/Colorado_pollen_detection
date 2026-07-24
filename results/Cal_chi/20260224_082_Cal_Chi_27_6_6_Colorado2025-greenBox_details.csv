@@ -1,0 +1,2 @@
+Sample_ID,CZI_File,Species,Area_um2,Centroid_X,Centroid_Y,Width_px,Height_px,Perimeter_px,Confidence,Tile
+Unknown_Sample,20260224_082_Cal_Chi_27_6_6_Colorado2025-greenBox.czi,Cal_chi,375.54,3061.0,6451.0,25,24,84.63,0.859,20260224_082_Cal_Chi_27_6_6_Colorado2025-greenBox_x002560_y006144

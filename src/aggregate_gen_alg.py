@@ -3,6 +3,7 @@ import glob
 import pandas as pd
 import re
 from datetime import datetime
+import numpy as np
 
 # Parse Excel first so we can map indices
 excel_path = 'results/Produkce tabulka Ranunculus, Caltha, Gentiana_VK.xlsx'
@@ -13,7 +14,7 @@ df_excel['Cleaned_Code'] = df_excel['kod kytky + datum'].astype(str).str.strip()
 ran_sequence = df_excel[df_excel['Cleaned_Code'].str.contains('Ran_Ado', case=False, na=False)]['Cleaned_Code'].tolist()
 
 counts = []
-for species in ['Gen_alg', 'Ran_ado']:
+for species in ['Gen_alg', 'Ran_ado', 'Cal_chi', 'Sed_lan']:
     results_dir = f'results/{species}'
     csv_files = glob.glob(os.path.join(results_dir, '*_details.csv'))
 
@@ -24,25 +25,29 @@ for species in ['Gen_alg', 'Ran_ado']:
         try:
             with open(file, 'r') as f:
                 num_detections = sum(1 for _ in f) - 1
-        except Exception as e:
+        except Exception:
             continue
             
         code = None
-        if species == 'Gen_alg':
-            match = re.search(r'(Gen_Alg_\d+_\d+_\d+)', basename, re.IGNORECASE)
+        if species in ['Gen_alg', 'Cal_chi']:
+            # Gen_Alg_22_7_2 or Cal_Chi_17_7_4
+            match = re.search(rf'({species}_\d+_\d+_\d+)', basename, re.IGNORECASE)
             if match:
                 code = match.group(1).lower()
-        elif species == 'Ran_ado':
-            match = re.search(r'Ran_ado_2025_(\d+)', basename)
+        elif species in ['Ran_ado', 'Sed_lan']:
+            match = re.search(rf'{species}_2025_(\d+)', basename)
             if match:
                 idx = int(match.group(1)) - 1
-                if 0 <= idx < len(ran_sequence):
-                    # We map it to the raw Excel code directly!
-                    code = ran_sequence[idx]
+                if species == 'Ran_ado':
+                    if 0 <= idx < len(ran_sequence):
+                        code = ran_sequence[idx]
+                elif species == 'Sed_lan':
+                    # Sed_lan is purely unmapped metadata placeholder
+                    code = f"Sed_lan_unmapped_{idx+1}"
                     
         if code is not None:
             counts.append({
-                'Join_Code': code if species == 'Ran_ado' else code, 
+                'Join_Code': code,
                 'Detections': max(0, num_detections), 
                 'Original_File': basename,
                 'Species': species
@@ -51,25 +56,27 @@ for species in ['Gen_alg', 'Ran_ado']:
 counts_df = pd.DataFrame(counts)
 
 # Now prepare Excel for join
-# For Gen_alg we need normalized lower unslashed codes, for Ran_ado we can use exact match
 def generate_join_code(row):
+    if pd.isna(row['kod kytky + datum']): return ''
     val = str(row['kod kytky + datum']).strip()
-    if 'Gen_Alg' in val:
+    if 'Gen_Alg' in val or 'Cal_Chi' in val:
         return val.lower().replace('/', '_')
     return val # Exact match for Ran_ado
 
 df_excel['Join_Code'] = df_excel.apply(generate_join_code, axis=1)
 
 # Merge
-merged_df = pd.merge(counts_df, df_excel, on='Join_Code', how='inner')
+# IMPORTANT: Use leftover left join so Sed_lan doesn't disappear without Excel data
+merged_df = pd.merge(counts_df, df_excel, on='Join_Code', how='left')
 
 # Extract proper sortable date
 def parse_date(row):
     val = str(row['Join_Code'])
     try:
-        if row['Species'] == 'Gen_alg':
+        if row['Species'] in ['Gen_alg', 'Cal_chi']:
+            # Either gen_alg_day_mo_rep or cal_chi_day_mo_rep
             parts = val.split('_')
-            return datetime(year=2025, month=int(parts[3]), day=int(parts[2]))
+            return datetime(year=2025, month=int(parts[-2]), day=int(parts[-3]))
         elif row['Species'] == 'Ran_ado':
             # Ran_Ado_22/6_1
             # remove prefix Ran_Ado_
@@ -82,11 +89,27 @@ def parse_date(row):
 
 merged_df['Collection_Date'] = merged_df.apply(parse_date, axis=1)
 
-# Sort logically by date
-merged_df = merged_df.dropna(subset=['Collection_Date'])
-merged_df.sort_values(['Collection_Date', 'Species'], inplace=True)
+# Sort logically by date (don't blindly dropna so we retain Sed_lan!)
+merged_df.sort_values(['Collection_Date', 'Species'], inplace=True, na_position='last')
+
+# Load focus_report.csv if it exists and merge Focus_Status
+if os.path.exists('focus_report.csv'):
+    focus_df = pd.read_csv('focus_report.csv')
+    # focus_df['file'] is something like 20260701_002_Dep_Ran_Ado...czi
+    # merged_df['Original_File'] is 20260701_002_Dep_Ran_Ado..._details.csv
+    # Create a mapping key by stripping extensions
+    focus_df['Base_CZI'] = focus_df['file'].str.replace('.czi', '', regex=False)
+    merged_df['Base_CZI'] = merged_df['Original_File'].astype(str).str.replace('_details.csv', '', regex=False)
+    
+    # Merge the Status
+    merged_df = pd.merge(merged_df, focus_df[['Base_CZI', 'status']], on='Base_CZI', how='left')
+    merged_df.rename(columns={'status': 'Focus_Status'}, inplace=True)
+    merged_df.drop(columns=['Base_CZI'], inplace=True)
+else:
+    merged_df['Focus_Status'] = 'Unknown'
 
 # Output
 out_path = 'results/Gen_alg_summary.csv'
 merged_df.to_csv(out_path, index=False)
-print(f"✅ Summary saved to {out_path} with {len(merged_df)} perfectly matched multi-species records.")
+print(f"✅ Summary saved to {out_path} with {len(merged_df)} natively left-joined records.")
+

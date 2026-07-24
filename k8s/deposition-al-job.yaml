@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pollen-deposition-al
+  namespace: stenc-ns
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: deposition-al-worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: IMAGE_PLACEHOLDER
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Preparing container paths..."
+              mkdir -p /app/Trainig_data
+              
+              echo "Finding latest YOLO general pollen model..."
+              LATEST_FOLDER=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl | grep "PRE general_pollen_" | grep -v "eval" | awk '{print $2}' | sort | tail -n 1)
+              echo "Downloading from: s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt"
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /app/best.pt --no-verify-ssl
+              
+              echo "Running Deposition Active Learning Extractor..."
+              python3 /scripts/k8s_deposition_al.py
+              
+              echo "Syncing generated data to S3..."
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/Trainig_data/ "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" --no-verify-ssl
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+              memory: "32Gi"
+              cpu: "8"
+            requests:
+              nvidia.com/gpu: 1
+              memory: "16Gi"
+              cpu: "4"
+          env:
+            - name: S3_ENDPOINT
+              value: "https://s3.cl4.du.cesnet.cz"
+            - name: S3_BUCKET
+              value: "bucket"
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: access-key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: s3-credentials
+                  key: secret-key
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - mountPath: /scripts
+              name: python-scripts
+      volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "16Gi"
+        - name: python-scripts
+          configMap:
+            name: deposition-al-script
+      restartPolicy: Never
+  backoffLimit: 0

@@ -23,9 +23,35 @@ pending_cache = None
 def get_pending_images():
     global pending_cache
     if not pending_cache:
-        print("⏳ Scraping metadata directory structure from S3... (this might take a few seconds initially)")
-        all_viz = glob.glob(os.path.join(BASE_DIR, "**", "Vizualization", "*_viz.jpg"), recursive=True)
-        pending_cache = sorted([v for v in all_viz if "/Reviewed/" not in v and "/Discarded/" not in v])
+        print("⏳ Scraping metadata directory structure from S3 using Boto3...")
+        import boto3
+        from botocore.client import Config
+        s3_endpoint  = "https://s3.cl4.du.cesnet.cz"
+        s3_bucket    = "bucket"
+        access_key   = "1Y920BKC0SAWPNDE8RD6"
+        secret_key   = "SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD"
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=s3_endpoint,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}),
+        )
+        paginator = client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Species_model/")
+        
+        all_viz = []
+        for page in pages:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    key = obj['Key']
+                    if 'Vizualization/' in key and key.endswith('_viz.jpg'):
+                        local_path = os.path.expanduser(f"~/cesnet_cloud/bucket/{key}")
+                        if "/Reviewed/" not in local_path and "/Discarded/" not in local_path and "/Negatives/" not in local_path:
+                            all_viz.append(local_path)
+        pending_cache = sorted(all_viz)
+        print(f"✅ Fast scraped {len(pending_cache)} pending visualization tiles.")
     return pending_cache
 
 def resolve_source_files(viz_path):
@@ -86,6 +112,10 @@ def index():
     req_target_species = request.args.get("target_species", "")
     if req_target_species:
         filtered_pending = [p for p in filtered_pending if req_target_species.lower() in os.path.basename(p).lower()]
+        
+    req_search_id = request.args.get("search_id", "")
+    if req_search_id:
+        filtered_pending = [p for p in filtered_pending if req_search_id.lower() in os.path.basename(p).lower()]
     
     if not filtered_pending:
         filtered_pending = pending
@@ -157,6 +187,7 @@ def index():
                                   all_species=all_species,
                                   req_species=req_species,
                                   req_target_species=req_target_species,
+                                  req_search_id=req_search_id,
                                   target_override=target_override,
                                   global_species=GLOBAL_SPECIES,
                                   idx=idx,
@@ -376,6 +407,12 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="panel-section">
+            <div class="panel-label">Target ID (Find exact region)</div>
+            <input type="text" id="search-id-input" value="{{ req_search_id }}" placeholder="e.g. x000100_y000200" style="width: 100%; box-sizing: border-box; padding: 10px; background:#444; color:white; border: 1px solid #2b78e4; border-radius: 5px; font-size: 14px; margin-top: 5px; outline:none;" onkeydown="if(event.key === 'Enter') applyFilters()">
+            <div style="font-size:11px; color:#aaa; margin-top:4px;">(Hit ENTER to isolate exact tile preview)</div>
+        </div>
+
+        <div class="panel-section">
             <div class="panel-label">Current Species</div>
             <div class="panel-value" style="color: #4CAF50;">{{ species_name }}</div>
         </div>
@@ -485,7 +522,8 @@ HTML_TEMPLATE = """
         function applyFilters() {
             const sp = document.getElementById("species-select").value;
             const tsp = document.getElementById("target-species-select").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp);
+            const searchId = document.getElementById("search-id-input").value;
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId);
         }
         
         function jumpToIdx() {
@@ -494,7 +532,8 @@ HTML_TEMPLATE = """
                 const nextIdx = val - 1;
                 const sp = document.getElementById("species-select").value;
                 const tsp = document.getElementById("target-species-select").value;
-                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx=" + nextIdx;
+                const searchId = document.getElementById("search-id-input").value;
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx=" + nextIdx;
             }
         }
         
@@ -503,7 +542,8 @@ HTML_TEMPLATE = """
             if(nextIdx < 0) nextIdx = 0;
             const sp = document.getElementById("species-select").value;
             const tsp = document.getElementById("target-species-select").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx=" + nextIdx;
+            const searchId = document.getElementById("search-id-input").value;
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx=" + nextIdx;
         }
 
         function sendAction(action) {
@@ -524,7 +564,8 @@ HTML_TEMPLATE = """
             }).then(() => {
                 const sp = document.getElementById("species-select").value;
                 const tsp = document.getElementById("target-species-select").value;
-                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&idx={{ idx }}";
+                const searchId = document.getElementById("search-id-input").value;
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx={{ idx }}";
             });
         }
 

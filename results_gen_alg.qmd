@@ -15,7 +15,7 @@ jupyter: python3
 ---
 
 ## Multi-Species Trend Over Time
-The data has dynamically parsed detection counts for both `Gen_alg` and `Ran_ado` datasets using native indexing logic directly to the Excel dataset.
+The data has dynamically parsed detection counts for all target datasets `Gen_alg`, `Ran_ado`, and `Cal_chi` utilizing native chronological Excel indexing logic directly over the raw files on disk. (Due to `Sed_lan` completely lacking chronological correlation in the Excel metadata table, it has been appropriately preserved in the total density graph below).
 
 ```{python}
 import pandas as pd
@@ -25,8 +25,10 @@ import plotly.express as px
 df = pd.read_csv('results/Gen_alg_summary.csv')
 df['Collection_Date'] = pd.to_datetime(df['Collection_Date'])
 
-# Create an interactive responsive line timeline grouping by date and species
-df_grouped = df.groupby(['Collection_Date', 'Species'])['Detections'].agg(['mean', 'std']).reset_index()
+# Create an interactive responsive line timeline grouping by date and species (Dropping Unmapped Sed_lan exclusively for chronological views)
+df_chrono = df.dropna(subset=['Collection_Date']).copy()
+
+df_grouped = df_chrono.groupby(['Collection_Date', 'Species'])['Detections'].agg(['mean', 'std']).reset_index()
 df_grouped['upper'] = df_grouped['mean'] + df_grouped['std'].fillna(0)
 df_grouped['lower'] = (df_grouped['mean'] - df_grouped['std'].fillna(0)).clip(lower=0)
 
@@ -34,7 +36,8 @@ fig = go.Figure()
 
 colors = {
     'Gen_alg': ('blue', 'rgba(0,100,255,0.2)'),
-    'Ran_ado': ('#e6005c', 'rgba(230,0,92,0.2)')
+    'Ran_ado': ('#e6005c', 'rgba(230,0,92,0.2)'),
+    'Cal_chi': ('#ff9900', 'rgba(255,153,0,0.2)')
 }
 
 for sp in df_grouped['Species'].unique():
@@ -70,15 +73,49 @@ fig.update_layout(
 fig.show()
 ```
 
+## Total Absolute Density Profile
+Aggregates the total absolute detection hits for all completely merged frameworks unconditionally.
+
+```{python}
+df_total = df.groupby('Species')['Detections'].sum().reset_index()
+
+fig3 = px.bar(df_total, x='Species', y='Detections', text='Detections', color='Species',
+              color_discrete_map={'Gen_alg': 'blue', 'Ran_ado': '#e6005c', 'Cal_chi': '#ff9900', 'Sed_lan': '#00b3b3'},
+              title='Total Aggregate Pollen Detections Distributed by Specimen Class')
+
+fig3.update_traces(textposition='outside')
+fig3.update_layout(xaxis_title='Dataset Type', yaxis_title='Total Detections Logged',
+                   margin=dict(l=20, r=20, t=40, b=20), autosize=True)
+fig3.show()
+```
+
+
+## Average Density Profile
+Aggregates the mean detection hits per sample across each evaluated species.
+
+```{python}
+df_mean = df.groupby('Species')['Detections'].mean().round(1).reset_index()
+
+fig4 = px.bar(df_mean, x='Species', y='Detections', text='Detections', color='Species',
+              color_discrete_map={'Gen_alg': 'blue', 'Ran_ado': '#e6005c', 'Cal_chi': '#ff9900', 'Sed_lan': '#00b3b3'},
+              title='Average Pollen Detections Per Sample by Specimen Class')
+
+fig4.update_traces(textposition='outside')
+fig4.update_layout(xaxis_title='Dataset Type', yaxis_title='Average Detections',
+                   margin=dict(l=20, r=20, t=40, b=20), autosize=True)
+fig4.show()
+```
+
+
 ## Specimen Variance Distribution
 
 ```{python}
 import plotly.express as px
 
-fig2 = px.box(df, x='Collection_Date', y='Detections', color='Species', points="all",
-              color_discrete_map={'Gen_alg': 'blue', 'Ran_ado': '#e6005c'},
-              title='Pollen Detections Variance Per Collection Date (Species Indexed)',
-              hover_data=['kod kytky + datum', 'Original_File'])
+fig2 = px.box(df_chrono, x='Collection_Date', y='Detections', color='Species', points="all",
+              color_discrete_map={'Gen_alg': 'blue', 'Ran_ado': '#e6005c', 'Cal_chi': '#ff9900'},
+              title='Pollen Detections Variance Per Collection Date (Chronologically Mapped Datasets Only)',
+              hover_data=['Join_Code', 'Original_File'])
 fig2.update_layout(xaxis_title='Date of Collection', yaxis_title='Pollen Count',
                    margin=dict(l=20, r=20, t=40, b=20), autosize=True)
 fig2.show()
@@ -89,10 +126,19 @@ fig2.show()
 ```{python}
 from IPython.display import display, HTML
 
-# Select a subset of highly relevant columns for presentation
-df_display = df[['kod kytky + datum', 'Species', 'Collection_Date', 'Detections', 'barvivo [μl]', 'na sklíčko [μ]']].copy()
-df_display['Collection_Date'] = df_display['Collection_Date'].dt.strftime('%Y-%m-%d')
-df_display.rename(columns={'kod kytky + datum': 'Excel Sample Code'}, inplace=True)
+# Select a subset of highly relevant columns for presentation including unmatched rows
+cols_to_show = ['Join_Code', 'Species', 'Collection_Date', 'Detections', 'Focus_Status', 'Original_File']
 
-display(HTML(df_display.to_html(classes='table table-striped table-hover', index=False)))
+# Append excel attributes if they exist
+for optional in ['barvivo [μl]', 'na sklíčko [μ]']:
+    if optional in df.columns:
+        cols_to_show.append(optional)
+
+df_display = df[cols_to_show].copy()
+
+# Fix string representations explicitly 
+if 'Collection_Date' in df_display.columns:
+    df_display['Collection_Date'] = df_display['Collection_Date'].dt.strftime('%Y-%m-%d')
+
+display(HTML(df_display.to_html(classes='table table-striped table-hover', index=False, na_rep='Unmapped')))
 ```

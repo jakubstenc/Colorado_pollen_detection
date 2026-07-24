@@ -4,24 +4,21 @@ import numpy as np
 from pathlib import Path
 from aicsimageio import AICSImage
 from ultralytics import YOLO
-import shutil
 import random
+import boto3
+from botocore.config import Config
 
-def extract_species(czi_path):
-    if 'Ran_ado' in czi_path.name: return 'Ran_ado'
-    if 'Vio_adu' in czi_path.name: return 'Vio_adu'
+def extract_species(filename):
+    if 'Ran_ado' in filename: return 'Ran_ado'
+    if 'Vio_adu' in filename: return 'Vio_adu'
     return 'Unknown'
 
-def get_mip_rgb(img):
-    if getattr(img.dims, 'S', 1) == 3:
-        try:
-            return img.get_image_data("YXS", T=0, Z=0, C=0)
-        except Exception:
-            return img.get_image_data("YXS", T=0, Z=0)
-    return None
-
-def tile_image_random(rgb, tile_size=640):
-    H, W = rgb.shape[:2]
+def tile_image_random(dask_data, tile_size=640):
+    """
+    Yields 640x640 random tiles lazily using dask arrays to prevent RAM crashes.
+    dask_data shape should be (Y, X, C)
+    """
+    H, W = dask_data.shape[:2]
     stride = tile_size
     coords = []
     
@@ -34,7 +31,9 @@ def tile_image_random(rgb, tile_size=640):
     random.shuffle(coords)
     
     for x, y in coords:
-        crop = rgb[y:y + tile_size, x:x + tile_size]
+        # We compute() here so that we only load the small 640x640 crop into RAM
+        crop = dask_data[y:y + tile_size, x:x + tile_size, :].compute()
+        
         # Ignore tiny edge slivers entirely
         if crop.shape[0] < tile_size // 2 or crop.shape[1] < tile_size // 2:
             continue
@@ -46,40 +45,88 @@ def tile_image_random(rgb, tile_size=640):
             
         yield crop, x, y
 
+def get_s3_client():
+    endpoint = os.environ.get("S3_ENDPOINT", "https://s3.cl4.du.cesnet.cz")
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    
+    # Boto3 client with custom endpoint and timeouts to prevent hanging
+    config = Config(connect_timeout=60, retries={'max_attempts': 5})
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        verify=False,
+        config=config
+    )
+
 def main():
-    source_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Source")
-    out_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives")
+    s3_bucket = os.environ.get("S3_BUCKET", "bucket")
+    source_prefix = "PEG/Colorado/Source/"
+    out_dir = Path("/app/Staged_negatives")
     out_dir.mkdir(parents=True, exist_ok=True)
     
     print("Loading YOLO model to verify negatives...")
+    # Assume best.pt is passed via volume or downloaded via k8s init
     model = YOLO("best.pt")
     
-    czis = sorted(list(source_dir.rglob("*.czi")))
+    s3_client = get_s3_client()
+    print("Fetching file list from S3...")
+    paginator = s3_client.get_paginator('list_objects_v2')
+    pages = paginator.paginate(Bucket=s3_bucket, Prefix=source_prefix)
+    
+    czi_keys = []
+    for page in pages:
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                if obj['Key'].endswith('.czi'):
+                    czi_keys.append(obj['Key'])
+                    
+    print(f"Found {len(czi_keys)} CZI files on S3.")
+    czi_keys.sort()
+    
     species_targets = {'Ran_ado': 150, 'Vio_adu': 150} # 300 total
     species_counts = {'Ran_ado': 0, 'Vio_adu': 0}
     
-    for czi_path in czis:
-        species = extract_species(czi_path)
+    for s3_key in czi_keys:
+        filename = s3_key.split('/')[-1]
+        species = extract_species(filename)
         if species not in species_targets:
             continue
             
         if species_counts[species] >= species_targets[species]:
             continue
             
-        print(f"\nReading {czi_path.name}...")
-        local_path = Path("/tmp") / czi_path.name
-        if not local_path.exists():
-            print(f"Copying to local /tmp...")
-            shutil.copyfile(czi_path, local_path)
-
-        img = AICSImage(str(local_path))
-        rgb = get_mip_rgb(img)
-        local_path.unlink()
+        local_path = Path(f"/tmp/{filename}")
+        print(f"\nDownloading {filename} from S3...")
         
-        if rgb is None:
+        try:
+            s3_client.download_file(s3_bucket, s3_key, str(local_path))
+        except Exception as e:
+            print(f"Error downloading {filename}: {e}")
             continue
 
-        for crop, tx, ty in tile_image_random(rgb):
+        print(f"Reading {filename} lazily...")
+        img = AICSImage(str(local_path))
+        
+        # Determine the RGB dask array correctly
+        try:
+            if getattr(img.dims, 'S', 1) == 3:
+                # Shape (Y, X, S=3)
+                dask_data = img.get_image_dask_data("YXS", T=0, Z=0, C=0)
+            else:
+                dask_data = img.get_image_dask_data("YXS", T=0, Z=0)
+        except Exception:
+            try:
+                # Fallback if YXS fails
+                dask_data = img.get_image_dask_data("YXC", T=0, Z=0)
+            except Exception as e:
+                print(f"Failed to get dask data for {filename}: {e}")
+                local_path.unlink(missing_ok=True)
+                continue
+        
+        for crop, tx, ty in tile_image_random(dask_data):
             if species_counts[species] >= species_targets[species]:
                 break
                 
@@ -89,11 +136,15 @@ def main():
             # Criteria for negative: 0 detections, and not pure black padding
             if len(results[0].boxes) == 0 and (results[0].masks is None or len(results[0].masks) == 0):
                 if np.mean(crop) > 20:  # Exclude areas that are completely black/empty scanner background
-                    out_path = out_dir / f"negative_{czi_path.stem}_x{tx:06d}_y{ty:06d}.jpg"
+                    base_stem = filename.replace('.czi', '')
+                    out_path = out_dir / f"negative_{base_stem}_x{tx:06d}_y{ty:06d}.jpg"
                     cv2.imwrite(str(out_path), cv2.cvtColor(crop, cv2.COLOR_RGB2BGR))
                     species_counts[species] += 1
                     total = sum(species_counts.values())
                     print(f"Collected negative {total}/300 [{species}: {species_counts[species]}/{species_targets[species]}]", end='\r')
+
+        # Clean up huge file immediately to prevent disk space issues
+        local_path.unlink(missing_ok=True)
 
     print(f"\n✨ Done! Negatives saved to {out_dir}")
 
