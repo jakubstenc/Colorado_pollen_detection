@@ -9,12 +9,15 @@ from build_species_dataset import tile_image, extract_general_pollen, get_mip_rg
 
 out_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Species_model/Trainig_data")
 model_path = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/best.pt"
-src_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/Cal_chi")
+src_dir_base = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Source")
 
 print("Loading model...")
 model = YOLO(model_path)
 
-czi_files = list(src_dir.glob("*.czi"))
+czi_files = list(src_dir_base.rglob("*/Cal_chi/*.czi"))
+if not czi_files:
+    czi_files = list(src_dir_base.rglob("Cal_chi/*.czi"))
+
 print(f"Found {len(czi_files)} Cal_chi files. Picking up to 5.")
 valid_keys = [f for f in czi_files if "20260227" not in f.name]
 if not valid_keys:
@@ -59,7 +62,10 @@ for czi_path in valid_keys:
             
             s3_endpoint = "https://s3.cl4.du.cesnet.cz"
             s3_bucket = "bucket"
-            key = f"PEG/Colorado/Source/Cal_chi/{czi_path.name}"
+            
+            # Construct S3 key dynamically based on where it was found locally
+            rel_path = czi_path.relative_to(src_dir_base)
+            key = f"PEG/Colorado/Source/{rel_path}"
             
             s3 = boto3.client('s3', 
                 endpoint_url=s3_endpoint, 

@@ -3,7 +3,7 @@ set -e
 
 if [ -z "$1" ]; then
     echo "Usage: ./deploy_general_infer.sh <species_folder_in_source>"
-    echo "Example: ./deploy_general_infer.sh Cal_chi"
+    echo "Example: ./deploy_general_infer.sh Pollen_deposition/Cal_chi"
     exit 1
 fi
 
