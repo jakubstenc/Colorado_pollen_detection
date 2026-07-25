@@ -56,6 +56,8 @@ def send_email(subject, body):
         print("⚠️ GMAIL_APP_PASSWORD not set. Cannot send email.")
         return
 
+    password = password.replace(" ", "")
+
     msg = EmailMessage()
     msg.set_content(body)
     msg['Subject'] = subject

@@ -45,7 +45,7 @@ def main():
     
     # 1. Get sample standard source CZI
     standard_key = None
-    res = s3.list_objects_v2(Bucket=bucket, Prefix="PEG/Colorado/Source/Ran_ado/", MaxKeys=5)
+    res = s3.list_objects_v2(Bucket=bucket, Prefix="PEG/Colorado/Source/Pollen_production/Ran_ado/", MaxKeys=5)
     for obj in res.get('Contents', []):
         if obj['Key'].endswith('.czi'):
             standard_key = obj['Key']

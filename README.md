@@ -64,6 +64,18 @@ We use **Roboflow** for semantic annotation and dataset versioning.
 
 ---
 
+## 🧑‍💻 Active Learning UI
+
+A local web-based Active Learning UI (`active_learning_ui.py`) is included to rapidly curate model predictions.
+
+**Workflow:**
+1. **Accept (Right Arrow):** The image and its predicted polygon are correct. The files are saved to `Curated_Retrain_Data` to be combined with the final training set.
+2. **Reject (Down Arrow):** The model hallucinated (e.g., an air bubble). This is saved as a **Hard Negative** (an empty label file) to `Curated_Retrain_Data` so the model explicitly learns to ignore it.
+3. **Skip/Discard (Spacebar):** The label is messy, misses a boundary, or needs manual correction. The image is moved to the `Discarded` folder.
+4. **Roboflow Export:** Clicking the "Prepare for Roboflow" button inside the UI automatically copies all `Discarded` images into the `Roboflow_Export` folder. You then upload this folder to Roboflow, manually fix the polygons, and download them back to merge with `Curated_Retrain_Data` for the next training cycle on CESNET.
+
+---
+
 ## 🏋️ Training Pipeline
 
 Training executes directly against the dynamically generated dataset folders.

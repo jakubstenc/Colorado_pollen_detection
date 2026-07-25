@@ -23,8 +23,8 @@ spec:
               mkdir -p /mnt/czi_data/Ran_ado
               
               echo "Downloading heavily unused Ran_ado files (skipping first 4)..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/" --no-verify-ssl | grep .czi | awk '{print $4}' | tail -n +5 | while read f; do
-                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/$f" "/mnt/czi_data/Ran_ado/$f" --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/" --no-verify-ssl | grep .czi | awk '{print $4}' | tail -n +5 | while read f; do
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/$f" "/mnt/czi_data/Ran_ado/$f" --no-verify-ssl
               done
           securityContext:
             allowPrivilegeEscalation: false

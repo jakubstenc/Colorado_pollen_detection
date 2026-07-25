@@ -23,7 +23,7 @@ spec:
               echo "Downloading Single Target Source CZI..."
               mkdir -p /mnt/czi_data/target/
               aws --endpoint-url "$S3_ENDPOINT" s3 cp \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/Gen_alg/20260226_206_Gen_Alg_22_7_2_Colorado2025-greenBox.czi" \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Gen_alg/20260226_206_Gen_Alg_22_7_2_Colorado2025-greenBox.czi" \
                 /mnt/czi_data/target/ \
                 --no-verify-ssl
                 

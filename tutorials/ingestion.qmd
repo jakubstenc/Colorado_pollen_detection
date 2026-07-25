@@ -21,11 +21,13 @@ The script expects a directory structure where species codes are embedded in fol
 
 ```text
 /path/to/data/
-├── Ran_ado/
-│   ├── Source/
+├── Pollen_production/
+│   ├── Ran_ado/
 │   │   ├── scan_001.czi
 │   │   └── scan_002.czi
-├── Ran_rep/
+│   ├── Ran_rep/
+│   │   └── ...
+├── Pollen_deposition/
 │   └── ...
 ```
 
