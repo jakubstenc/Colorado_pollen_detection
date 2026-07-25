@@ -1,3 +1,7 @@
+---
+title: "Article Methods Draft"
+---
+
 # 2. Materials and Methods
 
 ## 2.1. Image Preprocessing and Tiling Strategy
