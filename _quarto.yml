@@ -6,6 +6,7 @@ project:
     - tutorials/ingestion.qmd
     - tutorials/species_pipeline.qmd
     - results.qmd
+    - article_methods.qmd
 
 
 website:
@@ -23,6 +24,8 @@ website:
         text: Species Pipeline
       - href: results.qmd
         text: Results
+      - href: article_methods.qmd
+        text: Article Methods
     right:
       - icon: github
         href: https://github.com/jakubstenc/colorado_pollen

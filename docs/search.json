@@ -1,5 +1,159 @@
 [
   {
+    "objectID": "article_methods.html",
+    "href": "article_methods.html",
+    "title": "Article Methods Draft",
+    "section": "",
+    "text": "High-resolution microscopy scans were acquired in Zeiss .czi format. Due to the gigapixel dimensions of the raw slides, which exceed the memory constraints of modern convolutional neural networks, a deterministic tiling algorithm was employed. First, a Maximum Intensity Projection (MIP) was applied to the Z-stacks to collapse the three-dimensional volumetric data into a two-dimensional representation while preserving the structural topography of the pollen grains.\nThe resulting macroscopic images were dynamically partitioned into overlapping \\(640 \\times 640\\) pixel tiles. Overlap was strictly maintained to prevent truncation of pollen grains intersecting the grid boundaries. To suppress false-positive detections caused by inorganic debris, air bubbles, and slide artifacts, purely empty background tiles were explicitly sampled and injected into the training dataset as “Hard Negatives” (tiles with image data but lacking bounding box labels).\n\n\n\nTo maximize both detection recall on heterogeneous biological backgrounds (such as messy stigmas) and taxonomic classification precision, the detection pipeline was bifurcated into a two-stage cascaded architecture using the Ultralytics YOLOv8 framework.\nStage 1: General Pollen Instance Segmentation A YOLOv8-Large Instance Segmentation model (yolov8l-seg) was trained to detect any biological structure morphologically consistent with a pollen grain. During this stage, all species-specific class labels were collapsed into a singular pollen class (Class ID 0). This stage prioritized high-recall boundary detection over taxonomy. The model was trained for 500 epochs with dynamic augmentations including HSV color perturbation, multi-scale mosaic, and mixup to induce robustness against overlapping structures.\nStage 2: Species-Specific Classification Following Stage 1 inference, the identified polygon boundaries were utilized to dynamically crop the pollen grains from the source image. These standardized, isolated crops were then fed into a secondary YOLOv8-Extra-Large Image Classification model (yolov8x-cls). This model was exclusively trained on pure, manually curated reference pollen (e.g., Ranunculus adoneus) extracted directly from pristine anther scans. This two-stage decoupling prevents the classification model from learning irrelevant stigma background noise.\n\n\n\nTo continuously adapt the model to novel pollen orientations and previously unseen biological debris, a human-in-the-loop Active Learning interface was developed. The system allows domain experts to rapidly triage Stage 1 predictions on novel data: 1. Acceptance: Perfect segmentations are committed immediately to the Curated_Retrain_Data repository. 2. Hard Negatives: Erroneous detections (e.g., misidentified debris) are rejected and stored with empty annotation matrices to explicitly penalize the model in future training cycles. 3. Manual Refinement: Imprecise polygons are passed through a data pipeline to Roboflow, where experts manually redraw the physical boundaries using semantic polygon tools before reintegrating them into the training corpus.\n\n\n\nModel training and heavy preprocessing workloads were orchestrated as distributed containerized jobs via Kubernetes on the CESNET MetaCentrum High-Performance Computing cluster, utilizing NVIDIA A100 and A40 Tensor Core GPUs. Post-inference, the pipeline reconstructs the \\(640 \\times 640\\) predictions into downscaled \\(2000\\)-pixel macro-stitches with superimposed polygon masks for rapid visual verification, alongside tabular CSV exports containing spatial coordinates and morphological area (\\(\\mu m^2\\)) metrics for each detected grain."
+  },
+  {
+    "objectID": "article_methods.html#image-preprocessing-and-tiling-strategy",
+    "href": "article_methods.html#image-preprocessing-and-tiling-strategy",
+    "title": "Article Methods Draft",
+    "section": "",
+    "text": "High-resolution microscopy scans were acquired in Zeiss .czi format. Due to the gigapixel dimensions of the raw slides, which exceed the memory constraints of modern convolutional neural networks, a deterministic tiling algorithm was employed. First, a Maximum Intensity Projection (MIP) was applied to the Z-stacks to collapse the three-dimensional volumetric data into a two-dimensional representation while preserving the structural topography of the pollen grains.\nThe resulting macroscopic images were dynamically partitioned into overlapping \\(640 \\times 640\\) pixel tiles. Overlap was strictly maintained to prevent truncation of pollen grains intersecting the grid boundaries. To suppress false-positive detections caused by inorganic debris, air bubbles, and slide artifacts, purely empty background tiles were explicitly sampled and injected into the training dataset as “Hard Negatives” (tiles with image data but lacking bounding box labels)."
+  },
+  {
+    "objectID": "article_methods.html#two-stage-deep-learning-architecture",
+    "href": "article_methods.html#two-stage-deep-learning-architecture",
+    "title": "Article Methods Draft",
+    "section": "",
+    "text": "To maximize both detection recall on heterogeneous biological backgrounds (such as messy stigmas) and taxonomic classification precision, the detection pipeline was bifurcated into a two-stage cascaded architecture using the Ultralytics YOLOv8 framework.\nStage 1: General Pollen Instance Segmentation A YOLOv8-Large Instance Segmentation model (yolov8l-seg) was trained to detect any biological structure morphologically consistent with a pollen grain. During this stage, all species-specific class labels were collapsed into a singular pollen class (Class ID 0). This stage prioritized high-recall boundary detection over taxonomy. The model was trained for 500 epochs with dynamic augmentations including HSV color perturbation, multi-scale mosaic, and mixup to induce robustness against overlapping structures.\nStage 2: Species-Specific Classification Following Stage 1 inference, the identified polygon boundaries were utilized to dynamically crop the pollen grains from the source image. These standardized, isolated crops were then fed into a secondary YOLOv8-Extra-Large Image Classification model (yolov8x-cls). This model was exclusively trained on pure, manually curated reference pollen (e.g., Ranunculus adoneus) extracted directly from pristine anther scans. This two-stage decoupling prevents the classification model from learning irrelevant stigma background noise."
+  },
+  {
+    "objectID": "article_methods.html#continuous-active-learning-and-annotation",
+    "href": "article_methods.html#continuous-active-learning-and-annotation",
+    "title": "Article Methods Draft",
+    "section": "",
+    "text": "To continuously adapt the model to novel pollen orientations and previously unseen biological debris, a human-in-the-loop Active Learning interface was developed. The system allows domain experts to rapidly triage Stage 1 predictions on novel data: 1. Acceptance: Perfect segmentations are committed immediately to the Curated_Retrain_Data repository. 2. Hard Negatives: Erroneous detections (e.g., misidentified debris) are rejected and stored with empty annotation matrices to explicitly penalize the model in future training cycles. 3. Manual Refinement: Imprecise polygons are passed through a data pipeline to Roboflow, where experts manually redraw the physical boundaries using semantic polygon tools before reintegrating them into the training corpus."
+  },
+  {
+    "objectID": "article_methods.html#computational-environment-and-inference",
+    "href": "article_methods.html#computational-environment-and-inference",
+    "title": "Article Methods Draft",
+    "section": "",
+    "text": "Model training and heavy preprocessing workloads were orchestrated as distributed containerized jobs via Kubernetes on the CESNET MetaCentrum High-Performance Computing cluster, utilizing NVIDIA A100 and A40 Tensor Core GPUs. Post-inference, the pipeline reconstructs the \\(640 \\times 640\\) predictions into downscaled \\(2000\\)-pixel macro-stitches with superimposed polygon masks for rapid visual verification, alongside tabular CSV exports containing spatial coordinates and morphological area (\\(\\mu m^2\\)) metrics for each detected grain."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html",
+    "href": "tutorials/species_pipeline.html",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "The original pollen detection pipeline handles generalized “pollen” tracking by treating everything equally as class 0. The Species Specific Pipeline introduces a secondary Stage 2 Classification network allowing us to categorize up to 45 different species per sample recursively mapping to the species_manifest.csv ground truth.\n\n\nBecause creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops.\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  subgraph Stage 1\n    A[\"Raw .czi Scans\"] --&gt; B[\"General Segmenter Model\"]\n    B --&gt; C[\"Pollen Instance Masks\"]\n  end\n  subgraph Stage 2\n    C --&gt;|extract_crops.py| D[\"Classification Dataset\"]\n    D --&gt;|train_species.py| E[\"YOLOv8-cls Classifier Model\"]\n  end\n  subgraph Feedback Loop\n    E --&gt;|inference_species.py| F[\"Active Learning UI Dataset\"]\n    F --&gt;|Manual Fixes| G[\"dataset_species_curated/\"]\n    G -.-&gt;|Retrain| D\n  end\n\n\n\n\n\n\n\n\n\n\nIf you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks.\n\n\n\n\nNative image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream.\n\n\n\n\nThe native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback.\n\n\n\n\n\n\nOur AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Use the “Filter by True Source Species” dropdown. Because the UI natively parses your dataset against species_manifest.csv, it perfectly isolates your newest target crops dynamically (even if the model grouped them into the wrong predictive folder initially). 2. Scan the visualized crops. 3. The “Correct Species Identity” is automatically pre-filled for you natively from the source filename! 4. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#two-stage-architecture",
+    "href": "tutorials/species_pipeline.html#two-stage-architecture",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Because creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops.\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  subgraph Stage 1\n    A[\"Raw .czi Scans\"] --&gt; B[\"General Segmenter Model\"]\n    B --&gt; C[\"Pollen Instance Masks\"]\n  end\n  subgraph Stage 2\n    C --&gt;|extract_crops.py| D[\"Classification Dataset\"]\n    D --&gt;|train_species.py| E[\"YOLOv8-cls Classifier Model\"]\n  end\n  subgraph Feedback Loop\n    E --&gt;|inference_species.py| F[\"Active Learning UI Dataset\"]\n    F --&gt;|Manual Fixes| G[\"dataset_species_curated/\"]\n    G -.-&gt;|Retrain| D\n  end"
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
+    "href": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "If you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#training-the-species-classifier",
+    "href": "tutorials/species_pipeline.html#training-the-species-classifier",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Native image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#routine-inference-pipeline",
+    "href": "tutorials/species_pipeline.html#routine-inference-pipeline",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "The native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback."
+  },
+  {
+    "objectID": "tutorials/species_pipeline.html#active-iterative-feedback",
+    "href": "tutorials/species_pipeline.html#active-iterative-feedback",
+    "title": "Species Identification Workflow",
+    "section": "",
+    "text": "Our AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Use the “Filter by True Source Species” dropdown. Because the UI natively parses your dataset against species_manifest.csv, it perfectly isolates your newest target crops dynamically (even if the model grouped them into the wrong predictive folder initially). 2. Scan the visualized crops. 3. The “Correct Species Identity” is automatically pre-filled for you natively from the source filename! 4. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "",
+    "text": "Welcome to the documentation for the Colorado Pollen Detection project. This pipeline is designed to handle high-resolution .czi (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv8 Instance Segmentation architectures."
+  },
+  {
+    "objectID": "index.html#key-features",
+    "href": "index.html#key-features",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "1 🚀 Key Features",
+    "text": "1 🚀 Key Features\n\nHigh-Resolution Tiling: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.\nMax-Z Projection: Automated MIP reduction to consolidate focus levels without losing detail.\nRigorous 80/10/10 Split: The pipeline enforces a strictly isolated 10% Test dataset, guaranteeing totally unbiased post-training evaluation metrics.\nAutomated Negative Filtering: 100% automated ingestion of purely empty background images to hyper-penalize false-positive debris detections."
+  },
+  {
+    "objectID": "index.html#data-storage-policy",
+    "href": "index.html#data-storage-policy",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "2 📦 Data Storage Policy",
+    "text": "2 📦 Data Storage Policy\nTo keep the repository lightweight and efficient, large datasets and model weights are not stored on GitHub. Instead, they are synchronized with the CESNET S3 (S3.cl4.du.cesnet.cz) storage.\n\nSource Scans: Stored in s3://bucket/PEG/Colorado/detect_images/\nYOLO Datasets: Stored dynamically via s3://bucket/PEG/Colorado/Staged_area/ and s3://bucket/PEG/Colorado/Staged_negatives/\nModels: Stored reliably in s3://bucket/PEG/Colorado/trained_models/"
+  },
+  {
+    "objectID": "index.html#roboflow-annotation",
+    "href": "index.html#roboflow-annotation",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "3 🏷️ Roboflow Annotation",
+    "text": "3 🏷️ Roboflow Annotation\nWhile the pipeline relies heavily on high-throughput automated slicing and pseudo_label.py scripts natively, the human-in-the-loop manual curation for the base general pollen model is hosted externally. You can review, correct, and track the instance-segmentation polygon masks online:\nRoboflow: Pollen Lazy Labeling"
+  },
+  {
+    "objectID": "index.html#pipeline-overview",
+    "href": "index.html#pipeline-overview",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "4 🛠️ Pipeline Overview",
+    "text": "4 🛠️ Pipeline Overview\n\n\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A[\"Raw .czi Scans\"] --&gt; B[\"MAX-Z Projection (MIP) & Tiling\"]\n  B --&gt; C[\"Stage 1: General Pollen Detector\"]\n  C --&gt; D[\"Inference Predictions\"]\n  \n  D --&gt; E[\"Stage 2: Species Classifier\"]\n  E --&gt; F[\"Final Analysis\"]\n  \n  D -.-&gt; G[\"Active Learning UI (Human Review)\"]\n  G -- \"Accept\" --&gt; H[\"Curated_Retrain_Data\"]\n  G -- \"Reject (Hard Neg)\" --&gt; H\n  G -- \"Skip\" --&gt; I[\"Roboflow (Manual Fix)\"]\n  \n  I --&gt; J[\"Staged_area\"]\n  \n  H --&gt; K[\"Retrain Stage 1\"]\n  J --&gt; K\n  K -.-&gt; C\n\n\n\n\n\n\n\n\nFigure 1: Pipeline from Raw Data to Biological Insights"
+  },
+  {
+    "objectID": "index.html#get-started",
+    "href": "index.html#get-started",
+    "title": "Colorado Pollen Detection Pipeline",
+    "section": "5 📖 Get Started",
+    "text": "5 📖 Get Started\nCheck the following sections to get up and running:\n\nIngestion Tutorial: How to convert your first .czi folder.\nTraining: Set up GPU training using src/train_pollen.py.\nPseudo-Labeling: Auto-annotate tiles using src/pseudo_label.py.\n\n\nProject maintained by Jakub Štenc (CESNET / Prague)."
+  },
+  {
+    "objectID": "tutorials/ingestion.html",
+    "href": "tutorials/ingestion.html",
+    "title": "Ingestion Guide",
+    "section": "",
+    "text": "The CZI Ingestion Pipeline converts raw Zeiss .czi scans into 640x640 JPG tiles formatted for YOLO training."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#prerequisites",
+    "href": "tutorials/ingestion.html#prerequisites",
+    "title": "Ingestion Guide",
+    "section": "1 🏗️ Prerequisites",
+    "text": "1 🏗️ Prerequisites\nEnsure you have initialized the virtual environment:\npython3 -m venv .venv\nsource .venv/bin/activate\n# Use the IPv4 wrapper if you experience network hangs\npython3 pip_ipv4.py install -r requirements.txt"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#source-data-structure",
+    "href": "tutorials/ingestion.html#source-data-structure",
+    "title": "Ingestion Guide",
+    "section": "2 📂 Source Data Structure",
+    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Pollen_production/\n│   ├── Ran_ado/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n│   ├── Ran_rep/\n│   │   └── ...\n├── Pollen_deposition/\n│   └── ..."
+  },
+  {
+    "objectID": "tutorials/ingestion.html#running-the-ingest",
+    "href": "tutorials/ingestion.html#running-the-ingest",
+    "title": "Ingestion Guide",
+    "section": "3 🛠️ Running the Ingest",
+    "text": "3 🛠️ Running the Ingest\n\n3.1 Option A: Kubernetes Cluster (S3 Upload)\nBest for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped .zip file archive to S3.\npython k8s/deploy_czi.sh\n\n\n3.2 Option B: Local Execution (Direct to Cloud Mount)\nBest for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.\n# Ensure you are using the virtual environment\nsource .venv/bin/activate\n\npython src/czi_ingest.py \\\n    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \\\n    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \\\n    --channels 0 1 2 \\\n    --grayscale\n\n\n3.3 Key Parameters\n\n\n\n\n\n\n\nFlag\nDescription\n\n\n\n\n--root\nDeepest root directory to scan for .czi files\n\n\n--out\nTarget directory for images, labels, and data.yaml\n\n\n--channels\nIndices of fluorescence channels to use for R, G, B\n\n\n--grayscale\nForces output to neutral grayscale instead of red (critical for manual Roboflow annotation)\n\n\n--split\nTrain/Val ratio (e.g. 0.8 = 80% training data)\n\n\n--dry-run\nPreview the file list without writing to disk"
+  },
+  {
+    "objectID": "tutorials/ingestion.html#resolution-scaling",
+    "href": "tutorials/ingestion.html#resolution-scaling",
+    "title": "Ingestion Guide",
+    "section": "4 📐 Resolution & Scaling",
+    "text": "4 📐 Resolution & Scaling\nThe pipeline automatically extracts the PhysicalSizeX metadata from the CZI. This is crucial for: 1. Scaling measurements in the final analysis. 2. Filtering debris based on physical area (pollen grains are typically 10–100µm).\nCurrently, the Colorado scans processed show a resolution of ~0.88 µm/px."
+  },
+  {
     "objectID": "results.html",
     "href": "results.html",
     "title": "Results & Gallery",
@@ -47,124 +201,5 @@
     "title": "Results & Gallery",
     "section": "6 ⚙️ Species Dataset Configuration",
     "text": "6 ⚙️ Species Dataset Configuration\nTo give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest.\nYou can freely inject, override, or classify new species targets (e.g. Gen_alg) by editing the src/species_manifest.csv file mapping directly inside this repository.\nThe Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions."
-  },
-  {
-    "objectID": "tutorials/ingestion.html",
-    "href": "tutorials/ingestion.html",
-    "title": "Ingestion Guide",
-    "section": "",
-    "text": "The CZI Ingestion Pipeline converts raw Zeiss .czi scans into 640x640 JPG tiles formatted for YOLO training."
-  },
-  {
-    "objectID": "tutorials/ingestion.html#prerequisites",
-    "href": "tutorials/ingestion.html#prerequisites",
-    "title": "Ingestion Guide",
-    "section": "1 🏗️ Prerequisites",
-    "text": "1 🏗️ Prerequisites\nEnsure you have initialized the virtual environment:\npython3 -m venv .venv\nsource .venv/bin/activate\n# Use the IPv4 wrapper if you experience network hangs\npython3 pip_ipv4.py install -r requirements.txt"
-  },
-  {
-    "objectID": "tutorials/ingestion.html#source-data-structure",
-    "href": "tutorials/ingestion.html#source-data-structure",
-    "title": "Ingestion Guide",
-    "section": "2 📂 Source Data Structure",
-    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Pollen_production/\n│   ├── Ran_ado/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n│   ├── Ran_rep/\n│   │   └── ...\n├── Pollen_deposition/\n│   └── ..."
-  },
-  {
-    "objectID": "tutorials/ingestion.html#running-the-ingest",
-    "href": "tutorials/ingestion.html#running-the-ingest",
-    "title": "Ingestion Guide",
-    "section": "3 🛠️ Running the Ingest",
-    "text": "3 🛠️ Running the Ingest\n\n3.1 Option A: Kubernetes Cluster (S3 Upload)\nBest for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped .zip file archive to S3.\npython k8s/deploy_czi.sh\n\n\n3.2 Option B: Local Execution (Direct to Cloud Mount)\nBest for bypassing S3 staging zip files and generating tiles directly onto a mounted drive for immediate Roboflow access.\n# Ensure you are using the virtual environment\nsource .venv/bin/activate\n\npython src/czi_ingest.py \\\n    --root /home/meow/cesnet_cloud/bucket/PEG/Colorado/Source/ \\\n    --out /home/meow/cesnet_cloud/bucket/PEG/Colorado/pollen_czi_v1 \\\n    --channels 0 1 2 \\\n    --grayscale\n\n\n3.3 Key Parameters\n\n\n\n\n\n\n\nFlag\nDescription\n\n\n\n\n--root\nDeepest root directory to scan for .czi files\n\n\n--out\nTarget directory for images, labels, and data.yaml\n\n\n--channels\nIndices of fluorescence channels to use for R, G, B\n\n\n--grayscale\nForces output to neutral grayscale instead of red (critical for manual Roboflow annotation)\n\n\n--split\nTrain/Val ratio (e.g. 0.8 = 80% training data)\n\n\n--dry-run\nPreview the file list without writing to disk"
-  },
-  {
-    "objectID": "tutorials/ingestion.html#resolution-scaling",
-    "href": "tutorials/ingestion.html#resolution-scaling",
-    "title": "Ingestion Guide",
-    "section": "4 📐 Resolution & Scaling",
-    "text": "4 📐 Resolution & Scaling\nThe pipeline automatically extracts the PhysicalSizeX metadata from the CZI. This is crucial for: 1. Scaling measurements in the final analysis. 2. Filtering debris based on physical area (pollen grains are typically 10–100µm).\nCurrently, the Colorado scans processed show a resolution of ~0.88 µm/px."
-  },
-  {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "",
-    "text": "Welcome to the documentation for the Colorado Pollen Detection project. This pipeline is designed to handle high-resolution .czi (Zeiss) microscopy scans, segment individual pollen grains, and classify them by species using state-of-the-art YOLOv8 Instance Segmentation architectures."
-  },
-  {
-    "objectID": "index.html#key-features",
-    "href": "index.html#key-features",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "1 🚀 Key Features",
-    "text": "1 🚀 Key Features\n\nHigh-Resolution Tiling: Effortlessly process scans larger than 20,000 pixels by decomposing them into manageable training tiles.\nMax-Z Projection: Automated MIP reduction to consolidate focus levels without losing detail.\nRigorous 80/10/10 Split: The pipeline enforces a strictly isolated 10% Test dataset, guaranteeing totally unbiased post-training evaluation metrics.\nAutomated Negative Filtering: 100% automated ingestion of purely empty background images to hyper-penalize false-positive debris detections."
-  },
-  {
-    "objectID": "index.html#data-storage-policy",
-    "href": "index.html#data-storage-policy",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "2 📦 Data Storage Policy",
-    "text": "2 📦 Data Storage Policy\nTo keep the repository lightweight and efficient, large datasets and model weights are not stored on GitHub. Instead, they are synchronized with the CESNET S3 (S3.cl4.du.cesnet.cz) storage.\n\nSource Scans: Stored in s3://bucket/PEG/Colorado/detect_images/\nYOLO Datasets: Stored dynamically via s3://bucket/PEG/Colorado/Staged_area/ and s3://bucket/PEG/Colorado/Staged_negatives/\nModels: Stored reliably in s3://bucket/PEG/Colorado/trained_models/"
-  },
-  {
-    "objectID": "index.html#roboflow-annotation",
-    "href": "index.html#roboflow-annotation",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "3 🏷️ Roboflow Annotation",
-    "text": "3 🏷️ Roboflow Annotation\nWhile the pipeline relies heavily on high-throughput automated slicing and pseudo_label.py scripts natively, the human-in-the-loop manual curation for the base general pollen model is hosted externally. You can review, correct, and track the instance-segmentation polygon masks online:\nRoboflow: Pollen Lazy Labeling"
-  },
-  {
-    "objectID": "index.html#pipeline-overview",
-    "href": "index.html#pipeline-overview",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "4 🛠️ Pipeline Overview",
-    "text": "4 🛠️ Pipeline Overview\n\n\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A[\"Raw .czi Scans\"] --&gt; B[\"MAX-Z Projection (MIP) & Tiling\"]\n  B --&gt; C[\"Stage 1: General Pollen Detector\"]\n  C --&gt; D[\"Inference Predictions\"]\n  \n  D --&gt; E[\"Stage 2: Species Classifier\"]\n  E --&gt; F[\"Final Analysis\"]\n  \n  D -.-&gt; G[\"Active Learning UI (Human Review)\"]\n  G -- \"Accept\" --&gt; H[\"Curated_Retrain_Data\"]\n  G -- \"Reject (Hard Neg)\" --&gt; H\n  G -- \"Skip\" --&gt; I[\"Roboflow (Manual Fix)\"]\n  \n  I --&gt; J[\"Staged_area\"]\n  \n  H --&gt; K[\"Retrain Stage 1\"]\n  J --&gt; K\n  K -.-&gt; C\n\n\n\n\n\n\n\n\nFigure 1: Pipeline from Raw Data to Biological Insights"
-  },
-  {
-    "objectID": "index.html#get-started",
-    "href": "index.html#get-started",
-    "title": "Colorado Pollen Detection Pipeline",
-    "section": "5 📖 Get Started",
-    "text": "5 📖 Get Started\nCheck the following sections to get up and running:\n\nIngestion Tutorial: How to convert your first .czi folder.\nTraining: Set up GPU training using src/train_pollen.py.\nPseudo-Labeling: Auto-annotate tiles using src/pseudo_label.py.\n\n\nProject maintained by Jakub Štenc (CESNET / Prague)."
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html",
-    "href": "tutorials/species_pipeline.html",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "The original pollen detection pipeline handles generalized “pollen” tracking by treating everything equally as class 0. The Species Specific Pipeline introduces a secondary Stage 2 Classification network allowing us to categorize up to 45 different species per sample recursively mapping to the species_manifest.csv ground truth.\n\n\nBecause creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops.\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  subgraph Stage 1\n    A[\"Raw .czi Scans\"] --&gt; B[\"General Segmenter Model\"]\n    B --&gt; C[\"Pollen Instance Masks\"]\n  end\n  subgraph Stage 2\n    C --&gt;|extract_crops.py| D[\"Classification Dataset\"]\n    D --&gt;|train_species.py| E[\"YOLOv8-cls Classifier Model\"]\n  end\n  subgraph Feedback Loop\n    E --&gt;|inference_species.py| F[\"Active Learning UI Dataset\"]\n    F --&gt;|Manual Fixes| G[\"dataset_species_curated/\"]\n    G -.-&gt;|Retrain| D\n  end\n\n\n\n\n\n\n\n\n\n\nIf you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks.\n\n\n\n\nNative image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream.\n\n\n\n\nThe native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback.\n\n\n\n\n\n\nOur AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Use the “Filter by True Source Species” dropdown. Because the UI natively parses your dataset against species_manifest.csv, it perfectly isolates your newest target crops dynamically (even if the model grouped them into the wrong predictive folder initially). 2. Scan the visualized crops. 3. The “Correct Species Identity” is automatically pre-filled for you natively from the source filename! 4. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html#two-stage-architecture",
-    "href": "tutorials/species_pipeline.html#two-stage-architecture",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "Because creating a single complex multi-class instance segmentation model requires immaculate datasets that track every overlapping object concurrently, the Colorado project splits logic into isolated loops:\n\nStage 1 Segmenter: Locates arbitrary pollen grains rapidly.\nStage 2 Classifier: Identifies the biological species directly from the bounded crops.\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  subgraph Stage 1\n    A[\"Raw .czi Scans\"] --&gt; B[\"General Segmenter Model\"]\n    B --&gt; C[\"Pollen Instance Masks\"]\n  end\n  subgraph Stage 2\n    C --&gt;|extract_crops.py| D[\"Classification Dataset\"]\n    D --&gt;|train_species.py| E[\"YOLOv8-cls Classifier Model\"]\n  end\n  subgraph Feedback Loop\n    E --&gt;|inference_species.py| F[\"Active Learning UI Dataset\"]\n    F --&gt;|Manual Fixes| G[\"dataset_species_curated/\"]\n    G -.-&gt;|Retrain| D\n  end"
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
-    "href": "tutorials/species_pipeline.html#crop-extraction-dataset-formatting",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "If you have already generated generic detection boxes across your base biological datasets, you can slice these annotations natively into pristine crops ready for classification using extract_crops.py.\npython src/extract_crops.py \\\n    --src Species_model/Training_data \\\n    --out dataset_species \\\n    --pad 0.1 \\\n    --split 0.8\nThis transforms segmented masks directly into standard dataset_species/train/&lt;SpeciesCode&gt; ImageNet structures compatible out-of-the-box with YOLOv8 Classification networks."
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html#training-the-species-classifier",
-    "href": "tutorials/species_pipeline.html#training-the-species-classifier",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "Native image classification trains faster and stronger than its segmentation counterparts. Execute the new wrapper script bridging yolov8n-cls weights with heavily augmented sweeps:\npython src/train_species.py --dataset dataset_species\nOutputs dynamically deploy to models/species_classifier/latest.pt ensuring recursive compatibility downstream."
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html#routine-inference-pipeline",
-    "href": "tutorials/species_pipeline.html#routine-inference-pipeline",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "The native inference_species.py script replaces czi_ingest.py when investigating novel, untouched samples.\nThis script parses all raw .czi microscopy files sequentially applying Stage 1 and Stage 2 models concurrently:\npython src/inference_species.py \\\n    --root /path/to/czi/scans \\\n    --out ActiveLearning_Outputs \\\n    --model-seg models/general_pollen/latest.pt \\\n    --model-cls models/species_classifier/latest.pt\n\n\n\n📊 summary_results.csv: A dense table specifying exactly [CZI_File, Tile, Species, Confidence, Area_um2] summarizing massive biological volumes.\n🗺️ overview_{name}_labeled.jpg: A macro map detailing spatial distribution of every instance mapped by species!\n🗂️ UI Dataset Format: Saves instances logically grouped (Images, Labels, Vizualization) explicitly built for immediate manual feedback."
-  },
-  {
-    "objectID": "tutorials/species_pipeline.html#active-iterative-feedback",
-    "href": "tutorials/species_pipeline.html#active-iterative-feedback",
-    "title": "Species Identification Workflow",
-    "section": "",
-    "text": "Our AI improves only via your oversight. Start the frontend interface to manually vet species derivations:\npython active_learning_ui.py\n# → http://127.0.0.1:5001\nOnce in the inspector: 1. Use the “Filter by True Source Species” dropdown. Because the UI natively parses your dataset against species_manifest.csv, it perfectly isolates your newest target crops dynamically (even if the model grouped them into the wrong predictive folder initially). 2. Scan the visualized crops. 3. The “Correct Species Identity” is automatically pre-filled for you natively from the source filename! 4. Upon validating using [Right Arrow], the framework will natively physically crop and drop that corrected target directly into dataset_species_curated/train/&lt;Species&gt; feeding seamlessly right back into Step 2 for the next cycle."
   }
 ]
