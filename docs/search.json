@@ -67,7 +67,7 @@
     "href": "tutorials/ingestion.html#source-data-structure",
     "title": "Ingestion Guide",
     "section": "2 📂 Source Data Structure",
-    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Ran_ado/\n│   ├── Source/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n├── Ran_rep/\n│   └── ..."
+    "text": "2 📂 Source Data Structure\nThe script expects a directory structure where species codes are embedded in folder names:\n/path/to/data/\n├── Pollen_production/\n│   ├── Ran_ado/\n│   │   ├── scan_001.czi\n│   │   └── scan_002.czi\n│   ├── Ran_rep/\n│   │   └── ...\n├── Pollen_deposition/\n│   └── ..."
   },
   {
     "objectID": "tutorials/ingestion.html#running-the-ingest",
@@ -116,7 +116,7 @@
     "href": "index.html#pipeline-overview",
     "title": "Colorado Pollen Detection Pipeline",
     "section": "4 🛠️ Pipeline Overview",
-    "text": "4 🛠️ Pipeline Overview\n\n\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph LR\n  A[\"Raw .czi Scans\"] --&gt; B[\"MAX-Z Projection (MIP)\"]\n  B --&gt; C[\"640x640 Tiling\"]\n  C --&gt; D[\"Pseudo-Labeling / Curated Data\"]\n  C --&gt; E[\"Negative Filtering / Empty Tiles\"]\n  D --&gt; F[\"YOLOv8 Segmentation Training\"]\n  E --&gt; F\n  F --&gt; G[\"General Pollen Detection Model\"]\n  G --&gt; H[\"Inference & Discovery\"]\n\n\n\n\n\n\n\n\nFigure 1: Pipeline from Raw Data to Biological Insights"
+    "text": "4 🛠️ Pipeline Overview\n\n\n\n\n\n\n\n\n%%{init: {'theme': 'dark'}}%%\ngraph TD\n  A[\"Raw .czi Scans\"] --&gt; B[\"MAX-Z Projection (MIP) & Tiling\"]\n  B --&gt; C[\"Stage 1: General Pollen Detector\"]\n  C --&gt; D[\"Inference Predictions\"]\n  \n  D --&gt; E[\"Stage 2: Species Classifier\"]\n  E --&gt; F[\"Final Analysis\"]\n  \n  D -.-&gt; G[\"Active Learning UI (Human Review)\"]\n  G -- \"Accept\" --&gt; H[\"Curated_Retrain_Data\"]\n  G -- \"Reject (Hard Neg)\" --&gt; H\n  G -- \"Skip\" --&gt; I[\"Roboflow (Manual Fix)\"]\n  \n  I --&gt; J[\"Staged_area\"]\n  \n  H --&gt; K[\"Retrain Stage 1\"]\n  J --&gt; K\n  K -.-&gt; C\n\n\n\n\n\n\n\n\nFigure 1: Pipeline from Raw Data to Biological Insights"
   },
   {
     "objectID": "index.html#get-started",

@@ -368,15 +368,24 @@ ul.task-list li input[type="checkbox"] {
 <p></p><figure class="figure"><p></p>
 <div>
 <pre class="mermaid mermaid-js">%%{init: {'theme': 'dark'}}%%
-graph LR
-  A["Raw .czi Scans"] --&gt; B["MAX-Z Projection (MIP)"]
-  B --&gt; C["640x640 Tiling"]
-  C --&gt; D["Pseudo-Labeling / Curated Data"]
-  C --&gt; E["Negative Filtering / Empty Tiles"]
-  D --&gt; F["YOLOv8 Segmentation Training"]
-  E --&gt; F
-  F --&gt; G["General Pollen Detection Model"]
-  G --&gt; H["Inference &amp; Discovery"]
+graph TD
+  A["Raw .czi Scans"] --&gt; B["MAX-Z Projection (MIP) &amp; Tiling"]
+  B --&gt; C["Stage 1: General Pollen Detector"]
+  C --&gt; D["Inference Predictions"]
+  
+  D --&gt; E["Stage 2: Species Classifier"]
+  E --&gt; F["Final Analysis"]
+  
+  D -.-&gt; G["Active Learning UI (Human Review)"]
+  G -- "Accept" --&gt; H["Curated_Retrain_Data"]
+  G -- "Reject (Hard Neg)" --&gt; H
+  G -- "Skip" --&gt; I["Roboflow (Manual Fix)"]
+  
+  I --&gt; J["Staged_area"]
+  
+  H --&gt; K["Retrain Stage 1"]
+  J --&gt; K
+  K -.-&gt; C
 </pre>
 </div>
 <p></p></figure><p></p>

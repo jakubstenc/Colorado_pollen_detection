@@ -64,15 +64,18 @@ We use **Roboflow** for semantic annotation and dataset versioning.
 
 ---
 
-## 🧑‍💻 Active Learning UI
+## 🧑‍💻 Continuous Active Learning Loop
 
-A local web-based Active Learning UI (`active_learning_ui.py`) is included to rapidly curate model predictions.
+Machine learning models improve continuously through feedback. We use a local web-based UI (`active_learning_ui.py`) to grade the model's predictions on brand-new `.czi` scans and feed that data back into the next training cycle.
 
-**Workflow:**
-1. **Accept (Right Arrow):** The image and its predicted polygon are correct. The files are saved to `Curated_Retrain_Data` to be combined with the final training set.
-2. **Reject (Down Arrow):** The model hallucinated (e.g., an air bubble). This is saved as a **Hard Negative** (an empty label file) to `Curated_Retrain_Data` so the model explicitly learns to ignore it.
-3. **Skip/Discard (Spacebar):** The label is messy, misses a boundary, or needs manual correction. The image is moved to the `Discarded` folder.
-4. **Roboflow Export:** Clicking the "Prepare for Roboflow" button inside the UI automatically copies all `Discarded` images into the `Roboflow_Export` folder. You then upload this folder to Roboflow, manually fix the polygons, and download them back to merge with `Curated_Retrain_Data` for the next training cycle on CESNET.
+**The Loop:**
+1. **Run Inference:** Scan a new `.czi` stigma slide through the two-stage pipeline to generate predictions.
+2. **Grade Predictions in UI:** Open `active_learning_ui.py` to review the model's performance:
+    - **Accept (Right Arrow):** The polygon prediction is perfect. The image is saved to `Curated_Retrain_Data`.
+    - **Reject (Down Arrow):** The model hallucinated (e.g., an air bubble). This is saved as a **Hard Negative** (an empty label file) to `Curated_Retrain_Data` so the model explicitly learns to ignore it.
+    - **Skip/Discard (Spacebar):** The model missed the pollen or the polygon is messy. The image is moved to the `Discarded` folder for manual correction.
+3. **Roboflow Correction:** Click the "Prepare for Roboflow" button in the UI. This safely exports your `Discarded` images into `Roboflow_Export`. Upload this folder to your Roboflow project, manually redraw the bad polygons, and download the dataset zip back into `Staged_area`.
+4. **Retrain on CESNET:** Trigger the training jobs on the cluster. The `train_general.py` script automatically merges your new Roboflow zip, your perfectly `Accepted` images, and your `Hard Negatives` to create a significantly smarter Stage 1 detector!
 
 ---
 
