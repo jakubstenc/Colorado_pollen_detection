@@ -87,9 +87,13 @@ def main():
     
     for sf in species_folders:
         species_code = sf.name
-        img_dir = sf / "Images"
-        lbl_dir = sf / "Labels"
+        img_dir = sf / "Reviewed" / "Images"
+        lbl_dir = sf / "Reviewed" / "Labels"
         
+        if not img_dir.exists() or not lbl_dir.exists():
+            img_dir = sf / "Images"
+            lbl_dir = sf / "Labels"
+            
         if not img_dir.exists() or not lbl_dir.exists():
             continue
             

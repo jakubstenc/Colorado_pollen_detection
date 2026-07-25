@@ -80,7 +80,8 @@ def main():
         save_conf=False,
         conf=0.25, # standard confidence for the newly trained v3 model
         project=str(work_dir),
-        name="predict_out"
+        name="predict_out",
+        retina_masks=True
     )
 
     pred_labels_dir = work_dir / "predict_out" / "labels"

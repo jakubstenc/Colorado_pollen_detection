@@ -109,7 +109,7 @@ def extract_general_pollen(tile, model, conf_thresh):
     Runs the general_pollen YOLOv8 segmentation model on a 640x640 tile.
     Returns: list of dictionary detections -> [{'poly': [x1, y1, ...], 'conf': 0.9}]
     """
-    results = model(tile, verbose=False)
+    results = model(tile, verbose=False, retina_masks=True)
     detections = []
 
     if results[0].masks is None or results[0].boxes is None:

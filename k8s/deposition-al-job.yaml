@@ -33,10 +33,13 @@ spec:
               aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /app/best.pt --no-verify-ssl
               
               echo "Running Deposition Active Learning Extractor..."
-              python3 /scripts/k8s_deposition_al.py
+              python3 /app_scripts/k8s_deposition_al.py
               
               echo "Syncing generated data to S3..."
               aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/Trainig_data/ "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" --no-verify-ssl
+              
+              echo "Sending completion email notification..."
+              python3 /app/src/notify.py --type detection --job_name "Pollen Deposition Active Learning Extractor"
           resources:
             limits:
               nvidia.com/gpu: 1
@@ -61,10 +64,15 @@ spec:
                 secretKeyRef:
                   name: s3-credentials
                   key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
-            - mountPath: /scripts
+            - mountPath: /app_scripts
               name: python-scripts
       volumes:
         - name: dshm

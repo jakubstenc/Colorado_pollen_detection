@@ -23,13 +23,13 @@ spec:
               mkdir -p /mnt/czi_data/Ran_ado /mnt/czi_data/Vio_adu
               
               echo "Downloading Ran_ado files..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
-                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/$f" "/mnt/czi_data/Ran_ado/$f" --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/$f" "/mnt/czi_data/Ran_ado/$f" --no-verify-ssl
               done
 
               echo "Downloading Vio_adu files..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Vio_adu/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
-                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Vio_adu/$f" "/mnt/czi_data/Vio_adu/$f" --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Vio_adu/" --no-verify-ssl | grep .czi | awk '{print $4}' | head -n 2 | while read f; do
+                aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Vio_adu/$f" "/mnt/czi_data/Vio_adu/$f" --no-verify-ssl
               done
           securityContext:
             allowPrivilegeEscalation: false

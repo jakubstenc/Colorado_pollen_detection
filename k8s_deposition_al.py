@@ -94,13 +94,22 @@ def main():
             img = AICSImage(str(local_path))
             rgb = get_mip_rgb(img)
             
-            # 1. Blur/Focus Check
+            # Resolution Adaptation Check (2x downsampling if deposition scan at ~0.44 um/px)
+            px_size = getattr(img.physical_pixel_sizes, 'X', None)
+            scale_str = "1.0x"
+            if px_size is not None and px_size < 0.65:
+                rgb = cv2.resize(rgb, (rgb.shape[1] // 2, rgb.shape[0] // 2), interpolation=cv2.INTER_AREA)
+                scale_str = "0.5x (2x downsampled)"
+                print(f"   -> 📐 Applied spatial resolution scale: {scale_str} (original: {px_size:.4f} µm/px)")
+                
+            # 1. Blur/Focus Check (Laplacian variance scales quadratically with spatial resolution: ~15.0 for 2x downsampled)
+            blur_threshold = 15.0 if (px_size is not None and px_size < 0.65) else 150.0
             blur_score = compute_focus_score(rgb)
-            if blur_score < 200.0:
-                print(f"   -> ⚠️ Skipping due to blur (score: {blur_score:.2f})")
+            if blur_score < blur_threshold:
+                print(f"   -> ⚠️ Skipping due to blur (score: {blur_score:.2f} < threshold {blur_threshold})")
                 continue
                 
-            print(f"   -> ✅ Image is focused (score: {blur_score:.2f}). Processing into tiles...")
+            print(f"   -> ✅ Image is focused (score: {blur_score:.2f} >= threshold {blur_threshold}). Processing into tiles...")
                 
             if len(rgb.shape) < 3 or rgb.shape[0] < 640 or rgb.shape[1] < 640:
                 raise Exception(f"Invalid RGB Extracted: {rgb.shape}")

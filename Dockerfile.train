@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y wget curl && \
     pip install --no-cache-dir awscli aicsimageio dask imagecodecs boto3 aicspylibczi
 
 # Copy all new source code
+COPY src/ /app/src/
 COPY src/ /scripts/
 
 # Fix permissions

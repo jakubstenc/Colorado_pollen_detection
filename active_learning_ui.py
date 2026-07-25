@@ -18,7 +18,10 @@ STAGED_AREA_DIR = os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Staged_
 os.makedirs(DEST_IMG_DIR, exist_ok=True)
 os.makedirs(DEST_LBL_DIR, exist_ok=True)
 
+os.makedirs(DEST_LBL_DIR, exist_ok=True)
+
 pending_cache = None
+s3_client = None
 
 def get_pending_images():
     global pending_cache
@@ -31,37 +34,44 @@ def get_pending_images():
         access_key   = "1Y920BKC0SAWPNDE8RD6"
         secret_key   = "SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD"
 
-        client = boto3.client(
-            "s3",
-            endpoint_url=s3_endpoint,
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}),
-        )
-        paginator = client.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Species_model/")
+        global s3_client
+        if s3_client is None:
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url="https://s3.cl4.du.cesnet.cz",
+                aws_access_key_id="1Y920BKC0SAWPNDE8RD6",
+                aws_secret_access_key="SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD",
+                config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}),
+            )
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket="bucket", Prefix="PEG/Colorado/Species_model/")
         
         all_viz = []
         for page in pages:
             if 'Contents' in page:
                 for obj in page['Contents']:
                     key = obj['Key']
-                    if 'Vizualization/' in key and key.endswith('_viz.jpg'):
+                    if ('Vizualization/' in key and key.endswith('_viz.jpg')) or ('Negatives/' in key and key.endswith('.jpg')):
                         local_path = os.path.expanduser(f"~/cesnet_cloud/bucket/{key}")
-                        if "/Reviewed/" not in local_path and "/Discarded/" not in local_path and "/Negatives/" not in local_path:
+                        if "/Staged_area/" not in local_path:
                             all_viz.append(local_path)
         pending_cache = sorted(all_viz)
         print(f"✅ Fast scraped {len(pending_cache)} pending visualization tiles.")
     return pending_cache
 
 def resolve_source_files(viz_path):
-    viz_dir = os.path.dirname(viz_path)
-    species_dir = os.path.dirname(viz_dir)
-    filename = os.path.basename(viz_path)
-    base_stem = filename.replace("_viz.jpg", "")
-    img_path = os.path.join(species_dir, "Images", base_stem + ".jpg")
-    lbl_path = os.path.join(species_dir, "Labels", base_stem + ".txt")
-    return img_path, lbl_path, base_stem, species_dir
+    if "/Negatives/" in viz_path:
+        species_dir = os.path.dirname(os.path.dirname(viz_path))
+        base_stem = os.path.basename(viz_path).replace(".jpg", "")
+        return viz_path, "", base_stem, species_dir
+    else:
+        viz_dir = os.path.dirname(viz_path)
+        species_dir = os.path.dirname(viz_dir)
+        filename = os.path.basename(viz_path)
+        base_stem = filename.replace("_viz.jpg", "")
+        img_path = os.path.join(species_dir, "Images", base_stem + ".jpg")
+        lbl_path = os.path.join(species_dir, "Labels", base_stem + ".txt")
+        return img_path, lbl_path, base_stem, species_dir
 
 def mark_as_reviewed(viz_path, action_type):
     img_path, lbl_path, base_stem, species_dir = resolve_source_files(viz_path)
@@ -103,31 +113,51 @@ if os.path.exists(manifest_path):
 @app.route("/")
 def index():
     pending = get_pending_images()
+    
     if not pending:
         return "<body style='background:#121212;'><h1 style='color:white; font-family:sans-serif; text-align:center; padding-top:20%'>✅ All items completely verified and mapped! Nothing left in queue.</h1></body>"
     
     req_species = request.args.get("species", "")
-    filtered_pending = [p for p in pending if f"/{req_species}/" in p] if req_species else pending
-    
+    req_pred_type = request.args.get("pred_type", "positive")
     req_target_species = request.args.get("target_species", "")
+    req_search_id = request.args.get("search_id", "")
+    req_exact_path = request.args.get("exact_path", "")
+
+    if req_exact_path:
+        if "/Negatives/" in req_exact_path:
+            req_pred_type = "negative"
+        elif "/Vizualization/" in req_exact_path:
+            req_pred_type = "positive"
+
+    filtered_pending = pending
+    if req_pred_type == "positive":
+        filtered_pending = [p for p in filtered_pending if "/Vizualization/" in p]
+    elif req_pred_type == "negative":
+        filtered_pending = [p for p in filtered_pending if "/Negatives/" in p]
+
+    filtered_pending = [p for p in filtered_pending if f"/{req_species}/" in p] if req_species else filtered_pending
+    
     if req_target_species:
         filtered_pending = [p for p in filtered_pending if req_target_species.lower() in os.path.basename(p).lower()]
         
-    req_search_id = request.args.get("search_id", "")
     if req_search_id:
         filtered_pending = [p for p in filtered_pending if req_search_id.lower() in os.path.basename(p).lower()]
     
     if not filtered_pending:
         filtered_pending = pending
         req_species = ""
+        req_search_id = ""
         
-    try:
-        idx = int(request.args.get("idx", 0))
-    except ValueError:
-        idx = 0
-        
-    if idx >= len(filtered_pending) or idx < 0:
-        idx = 0
+    if req_exact_path and req_exact_path in filtered_pending:
+        idx = filtered_pending.index(req_exact_path)
+    else:
+        try:
+            idx = int(request.args.get("idx", 0))
+        except ValueError:
+            idx = 0
+            
+        if idx >= len(filtered_pending) or idx < 0:
+            idx = 0
 
     curr_viz = filtered_pending[idx]
     img_path, lbl_path, base_stem, species_dir = resolve_source_files(curr_viz)
@@ -188,14 +218,32 @@ def index():
                                   req_species=req_species,
                                   req_target_species=req_target_species,
                                   req_search_id=req_search_id,
+                                  req_pred_type=req_pred_type,
                                   target_override=target_override,
                                   global_species=GLOBAL_SPECIES,
                                   idx=idx,
+                                  undo_stack=undo_stack,
                                   undo_available=len(undo_stack) > 0)
 
 @app.route("/image")
 def serve_image():
     path = request.args.get("path")
+    if not os.path.exists(path):
+        # Auto-download from S3 if missing locally
+        rel_path = os.path.relpath(path, os.path.expanduser("~/cesnet_cloud/bucket"))
+        if rel_path.startswith("PEG/"):
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                global s3_client
+                if s3_client is None:
+                    import boto3
+                    from botocore.client import Config
+                    s3_client = boto3.client("s3", endpoint_url="https://s3.cl4.du.cesnet.cz", aws_access_key_id="1Y920BKC0SAWPNDE8RD6", aws_secret_access_key="SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD", config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}))
+                s3_client.download_file("bucket", rel_path, path)
+                print(f"Auto-downloaded missing file from S3: {rel_path}")
+            except Exception as e:
+                print(f"Failed to auto-download {rel_path} from S3: {e}")
+                return "File not found", 404
     return send_file(path)
 
 @app.route("/raw_image")
@@ -320,9 +368,90 @@ def process_undo_bg(last, base_stem, dest_img_dir, dest_lbl_dir):
     if last["action"] in ["approve", "reject"]:
         dest_img = os.path.join(dest_img_dir, base_stem + ".jpg")
         if os.path.exists(dest_img): os.remove(dest_img)
-            
         dest_lbl = os.path.join(dest_lbl_dir, base_stem + ".txt")
         if os.path.exists(dest_lbl): os.remove(dest_lbl)
+        
+    global pending_cache
+    if pending_cache is not None:
+        pending_cache = None
+
+@app.route("/prepare_roboflow", methods=["POST"])
+def prepare_roboflow():
+    import cv2
+    import numpy as np
+    
+    out_dir = os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Roboflow_Export")
+    out_img = os.path.join(out_dir, "images")
+    out_lbl = os.path.join(out_dir, "labels")
+    
+    os.makedirs(out_img, exist_ok=True)
+    os.makedirs(out_lbl, exist_ok=True)
+    
+    lbl_files = glob.glob(os.path.join(STAGED_AREA_DIR, "*", "Discarded", "Labels", "*.txt"))
+    
+    exported = 0
+    for lbl_f in lbl_files:
+        base = os.path.basename(lbl_f)
+        # The image path is parallel to the label path
+        img_f = lbl_f.replace("/Labels/", "/Images/").replace(".txt", ".jpg")
+        if not os.path.exists(img_f):
+            continue
+            
+        with open(lbl_f, 'r') as f:
+            lines = f.readlines()
+            
+        if not lines:
+            continue
+            
+        out_lbl_f = os.path.join(out_lbl, base)
+        out_img_f = os.path.join(out_img, base.replace(".txt", ".jpg"))
+        
+        shutil.copy(img_f, out_img_f)
+            
+        img = cv2.imread(img_f)
+        if img is None: continue
+        h, w = img.shape[:2]
+        
+        new_lines = []
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) > 5:
+                class_id = parts[0]
+                coords = [float(p) for p in parts[1:]]
+                x = [int(c * w) for c in coords[0::2]]
+                y = [int(c * h) for c in coords[1::2]]
+                
+                pad = 20
+                min_x = max(0, min(x) - pad)
+                max_x = min(w, max(x) + pad)
+                min_y = max(0, min(y) - pad)
+                max_y = min(h, max(y) + pad)
+                
+                crop = img[min_y:max_y, min_x:max_x]
+                if crop.size > 0:
+                    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+                    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+                    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+                    
+                    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    if contours:
+                        largest = max(contours, key=cv2.contourArea)
+                        if len(largest) >= 3:
+                            norm_pts = []
+                            for pt in largest:
+                                px = (pt[0][0] + min_x) / w
+                                py = (pt[0][1] + min_y) / h
+                                norm_pts.append(f"{px:.6f} {py:.6f}")
+                            
+                            new_lines.append(f"{class_id} " + " ".join(norm_pts) + "\n")
+                            continue
+            new_lines.append(line)
+            
+        with open(out_lbl_f, 'w') as f:
+            f.writelines(new_lines)
+        exported += 1
+            
+    return jsonify({"status": "success", "msg": f"Successfully snapped polygons and exported {exported} files to Roboflow_Export!"})
 
 @app.route("/undo", methods=["POST"])
 def undo():
@@ -342,6 +471,105 @@ def undo():
         
     return jsonify({"status": "success"})
 
+def get_slide_data():
+    pending = get_pending_images()
+    slides = {}
+    for p in pending:
+        filename = os.path.basename(p)
+        base = filename.replace("_viz.jpg", "").replace(".jpg", "")
+        if "_x" in base and "_y" in base:
+            slide_name = base.split("_x")[0]
+            try:
+                x = int(base.split("_x")[1].split("_y")[0])
+                y = int(base.split("_y")[1])
+            except:
+                continue
+            if slide_name not in slides:
+                slides[slide_name] = []
+            slides[slide_name].append({'path': p, 'x': x, 'y': y, 'filename': filename})
+    return slides
+
+OVERVIEW_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Slide Overview</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #eee; padding: 40px; }
+        a { color: #4db8ff; text-decoration: none; font-size: 18px; }
+        a:hover { text-decoration: underline; }
+        .slide-item { background: #1e1e1e; padding: 20px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #333; }
+        .count { color: #888; font-size: 14px; margin-left: 10px; }
+        h1 { font-weight: 300; margin-bottom: 30px; }
+        .btn { background: #333; color: white; padding: 10px 20px; border-radius: 5px; margin-bottom: 20px; display: inline-block; border: 1px solid #555; text-decoration: none; }
+        .btn:hover { background: #444; }
+    </style>
+</head>
+<body>
+    <a href="/" class="btn">Back to Linear Queue</a>
+    <h1>Macro Slide Overview</h1>
+    {% for name, tiles in slides.items() %}
+        <div class="slide-item">
+            <a href="/slide/{{ name }}">{{ name }}</a>
+            <span class="count">({{ tiles|length }} pending sectors)</span>
+        </div>
+    {% endfor %}
+</body>
+</html>
+"""
+
+SLIDE_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ slide_name }} Overview</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #eee; padding: 20px; text-align: center; }
+        .grid-container { position: relative; margin: 0 auto; background: #000; border: 1px solid #333; width: {{ max_w }}px; height: {{ max_h }}px; }
+        .tile { position: absolute; border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; cursor: pointer; transition: transform 0.1s; }
+        .tile:hover { transform: scale(1.1); z-index: 10; border-color: #00ff00; box-shadow: 0 0 10px #00ff00; }
+        .tile img { width: 100%; height: 100%; display: block; object-fit: cover; }
+        h2 { font-weight: 300; margin-bottom: 20px; }
+        .btn { background: #333; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; margin-bottom: 20px; display: inline-block; border: 1px solid #555; }
+        .btn:hover { background: #444; }
+    </style>
+</head>
+<body>
+    <a href="/overview" class="btn">Back to Overview List</a>
+    <h2>Preview: {{ slide_name }}</h2>
+    <div class="grid-container">
+        {% for t in tiles %}
+            <a href="/?search_id={{ slide_name|urlencode }}&exact_path={{ t.path|urlencode }}">
+                <div class="tile" style="left: {{ t.x * scale }}px; top: {{ t.y * scale }}px; width: {{ 640 * scale }}px; height: {{ 640 * scale }}px;" title="{{ t.filename }}">
+                    <img src="/image?path={{ t.path|urlencode }}" loading="lazy" />
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+</body>
+</html>
+"""
+
+@app.route("/overview")
+def overview():
+    slides = get_slide_data()
+    return render_template_string(OVERVIEW_TEMPLATE, slides=slides)
+
+@app.route("/slide/<slide_name>")
+def slide_view(slide_name):
+    slides = get_slide_data()
+    if slide_name not in slides:
+        return "Slide not found", 404
+    tiles = slides[slide_name]
+    max_x = max(t['x'] for t in tiles) + 640
+    max_y = max(t['y'] for t in tiles) + 640
+    
+    # Scale factor to fit within a reasonable viewport max width/height
+    scale = min(800.0 / max_y, 1200.0 / max_x)
+    if scale > 0.15: scale = 0.15
+    
+    return render_template_string(SLIDE_TEMPLATE, slide_name=slide_name, tiles=tiles, scale=scale, max_w=max_x*scale, max_h=max_y*scale)
+
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -351,6 +579,7 @@ HTML_TEMPLATE = """
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: #eeeeee; text-align: center; margin:0; padding:0; display:flex;}
         .sidebar { width: 320px; background: #1e1e1e; height: 100vh; box-sizing: border-box; padding: 25px 20px; border-right: 1px solid #333; text-align: left; display:flex; flex-direction:column; overflow-y:auto; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index:10;}
+        .right-sidebar { width: 280px; background: #1e1e1e; height: 100vh; box-sizing: border-box; padding: 25px 15px; border-left: 1px solid #333; text-align: left; display:flex; flex-direction:column; overflow-y:auto; box-shadow: -2px 0 10px rgba(0,0,0,0.5); z-index:10;}
         .main-content { flex: 1; height: 100vh; overflow-y: auto; display:flex; flex-direction:column; align-items:center; justify-content:center;}
         
         h2 { margin-bottom: 25px; margin-top:5px; color:#bbbbbb; font-weight: 300; font-size:24px; text-align:center;}
@@ -387,6 +616,15 @@ HTML_TEMPLATE = """
         <h2>Data Inspector</h2>
         
         <div class="panel-section">
+            <div class="panel-label">Prediction Type</div>
+            <select id="pred-type-select" onchange="applyFilters()">
+                <option value="all" {% if req_pred_type == 'all' %}selected{% endif %}>All (Mixed)</option>
+                <option value="positive" {% if req_pred_type == 'positive' %}selected{% endif %}>Suspected Pollen</option>
+                <option value="negative" {% if req_pred_type == 'negative' %}selected{% endif %}>Hard Negatives</option>
+            </select>
+        </div>
+
+        <div class="panel-section">
             <div class="panel-label">Filter by Species Prediction</div>
             <select id="species-select" onchange="applyFilters()">
                 <option value="">-- All Species --</option>
@@ -422,6 +660,10 @@ HTML_TEMPLATE = """
             <div class="panel-value" style="color: #FFC107; font-size: 24px;"><span id="active-count">{{ num_objs }}</span> / {{ num_objs }} targets</div>
             <div style="font-size:11px; color:#777; margin-top:4px;">(Click bounding boxes on the image to toggle/correct labels)</div>
         </div>
+        
+        <button style="margin-top:auto; background: #e67e22; box-shadow: 0 4px #b8651b; width:100%; margin-bottom: 20px;" onclick="prepareRoboflow()">
+            ✨ Prepare for Roboflow (Snap Polygons)
+        </button>
 
         <div class="panel-section">
             <div class="panel-label">Correct Species Identity</div>
@@ -447,9 +689,27 @@ HTML_TEMPLATE = """
     </div>
     
     <div class="main-content">
-        <div class="image-box" style="display:inline-block;">
-            <div style="position:relative; display:inline-block;">
-                <img src="/image?path={{viz_path}}" alt="Visualization" id="main-image">
+        <div class="image-box" style="display:inline-block; max-width: 70vw; max-height: 85vh; overflow: auto; position: relative;">
+            <div style="text-align: center; position: sticky; top: 0; z-index: 100; background: rgba(30,30,30,0.95); padding: 10px; border-radius: 8px; margin-bottom: 10px; display:flex; justify-content:center; gap:30px; border-bottom: 1px solid #444; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                <div style="display:flex; align-items:center;">
+                    <label for="zoom-slider" style="color:#ddd; font-size:14px; margin-right:8px; font-weight:bold;">🔍 Zoom:</label>
+                    <input type="range" id="zoom-slider" min="100" max="600" step="10" value="100" style="width: 150px; cursor: pointer;" oninput="let w = this.value + '%'; document.getElementById('raw-image').style.width = w; document.getElementById('raw-image').style.maxWidth = 'none'; document.getElementById('raw-image').style.maxHeight = 'none';">
+                </div>
+                <div style="font-weight: 600; color: #4db8ff; margin-bottom: 10px; font-size:18px;">
+                    ACTIVE LEARNING UI
+                </div>
+                <a href="/overview" style="display:block; padding: 8px; background: #333; color: white; border-radius: 4px; text-align: center; text-decoration: none; border: 1px solid #555; margin-bottom: 20px; font-size: 14px;">
+                    🔍 Slide Overview Grid
+                </a>
+                <div style="display:flex; align-items:center;">
+                    <label for="opacity-slider" style="color:#ddd; font-size:14px; margin-right:8px; font-weight:bold;">👁️ Bounding Box Opacity:</label>
+                    <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="1" style="width: 150px; cursor: pointer;" oninput="document.getElementById('main-image').style.opacity = this.value; document.getElementById('labels-container').style.opacity = this.value;">
+                </div>
+            </div>
+            
+            <div id="zoom-container" style="position:relative; display:inline-block; transform-origin: top center;">
+                <img src="/image?path={{img_path}}" alt="Raw Image" id="raw-image" style="display:block; width:100%; transition: width 0.1s ease-out;">
+                <img src="/image?path={{viz_path}}" alt="Visualization" id="main-image" style="position:absolute; top:0; left:0; width:100%; height:100%; max-width:none; max-height:none;">
                 <div id="labels-container" style="position:absolute; top:0; left:0; width:100%; height:100%;"></div>
             </div>
         </div>
@@ -473,10 +733,38 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
+    <div class="right-sidebar">
+        <h2 style="font-size:18px;">History Queue</h2>
+        {% if undo_stack|length == 0 %}
+            <div style="color:#888; font-size:13px; text-align:center; margin-top:20px;">No recent decisions.</div>
+        {% else %}
+            {% for item in undo_stack|reverse %}
+            <div class="panel-section" style="border-left: 4px solid {% if item.action == 'approve' %}#22a042{% elif item.action == 'reject' %}#d63346{% else %}#5a6268{% endif %}; padding: 10px; margin-bottom: 10px;">
+                <div style="font-size:11px; color:#aaa; margin-bottom: 3px; font-weight:bold; text-transform:uppercase;">{{ item.action }}</div>
+                <div style="font-size:12px; color:#ddd; word-break: break-all; margin-bottom: 5px;" title="{{ item.base_stem }}">{{ item.base_stem }}</div>
+                <img src="/image?path={{ item.viz_path }}" style="width:100%; height:auto; border-radius:4px; margin-bottom:8px; border:1px solid #444;">
+                {% if loop.index0 == 0 %}
+                <button onclick="sendUndo()" style="background: #e67e22; padding: 6px 12px; font-size:12px; border-radius:4px; border:none; color:white; cursor:pointer; width:100%; box-shadow:0 2px #a85812;">Undo Latest</button>
+                {% else %}
+                <div style="font-size:10px; color:#666; text-align:center;">(Undo previous first)</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
     <script>
         let isProcessing = false;
         const labelsData = {{ labels_data|tojson|safe }};
         let activeLabels = new Array(labelsData.length).fill(true);
+        
+        // Smart Auto-Reject: If the label is extremely small, assume it is an artifact/false positive.
+        // The user can still manually click it to re-enable it if it was a mistake.
+        for (let i = 0; i < labelsData.length; i++) {
+            if (labelsData[i].w * 100 < 1.5 && labelsData[i].h * 100 < 1.5) {
+                activeLabels[i] = false;
+            }
+        }
 
         function renderBoxes() {
             const container = document.getElementById("labels-container");
@@ -492,10 +780,14 @@ HTML_TEMPLATE = """
                     activeCount++;
                 }
                 
-                const left = lbl.x_min * 100;
-                const top = lbl.y_min * 100;
-                const width = lbl.w * 100;
-                const height = lbl.h * 100;
+                let origWidth = lbl.w * 100;
+                let origHeight = lbl.h * 100;
+                
+                let width = Math.max(origWidth, 3.0);
+                let height = Math.max(origHeight, 3.0);
+                
+                let left = (lbl.x_min * 100) - (width - origWidth) / 2;
+                let top = (lbl.y_min * 100) - (height - origHeight) / 2;
                 
                 box.style.left = left + "%";
                 box.style.top = top + "%";
@@ -520,30 +812,70 @@ HTML_TEMPLATE = """
         window.addEventListener('load', renderBoxes);
         
         function applyFilters() {
+            const pt = document.getElementById("pred-type-select").value;
             const sp = document.getElementById("species-select").value;
             const tsp = document.getElementById("target-species-select").value;
             const searchId = document.getElementById("search-id-input").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId);
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&pred_type=" + encodeURIComponent(pt);
         }
         
         function jumpToIdx() {
             const val = parseInt(document.getElementById("jump-idx").value, 10);
             if (!isNaN(val) && val >= 1) {
                 const nextIdx = val - 1;
+                const pt = document.getElementById("pred-type-select").value;
                 const sp = document.getElementById("species-select").value;
                 const tsp = document.getElementById("target-species-select").value;
                 const searchId = document.getElementById("search-id-input").value;
-                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx=" + nextIdx;
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&pred_type=" + encodeURIComponent(pt) + "&idx=" + nextIdx;
             }
         }
         
         function navigate(dir) {
             let nextIdx = {{ idx }} + dir;
             if(nextIdx < 0) nextIdx = 0;
+            const pt = document.getElementById("pred-type-select").value;
             const sp = document.getElementById("species-select").value;
             const tsp = document.getElementById("target-species-select").value;
             const searchId = document.getElementById("search-id-input").value;
-            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx=" + nextIdx;
+            window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&pred_type=" + encodeURIComponent(pt) + "&idx=" + nextIdx;
+        }
+
+        function sendUndo() {
+            if(isProcessing) return;
+            isProcessing = true;
+            fetch("/undo", { method: "POST" })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === "success") {
+                    const pt = document.getElementById("pred-type-select").value;
+                    const sp = document.getElementById("species-select").value;
+                    const tsp = document.getElementById("target-species-select").value;
+                    const searchId = document.getElementById("search-id-input").value;
+                    window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&pred_type=" + encodeURIComponent(pt);
+                } else {
+                    isProcessing = false;
+                    alert(res.msg);
+                }
+            });
+        }
+        
+        function prepareRoboflow() {
+            if(isProcessing) return;
+            if(!confirm("This will process all approved and rejected images across all species, snap their polygons to physical edges, and export them to Roboflow_Export. This may take a minute. Continue?")) return;
+            isProcessing = true;
+            document.body.style.cursor = "wait";
+            fetch("/prepare_roboflow", { method: "POST" })
+            .then(r => r.json())
+            .then(res => {
+                isProcessing = false;
+                document.body.style.cursor = "default";
+                alert(res.msg);
+            }).catch(err => {
+                isProcessing = false;
+                document.body.style.cursor = "default";
+                alert("An error occurred during export.");
+            });
         }
 
         function sendAction(action) {
@@ -562,10 +894,11 @@ HTML_TEMPLATE = """
                     override_species: overrideSpecies
                 })
             }).then(() => {
+                const pt = document.getElementById("pred-type-select").value;
                 const sp = document.getElementById("species-select").value;
                 const tsp = document.getElementById("target-species-select").value;
                 const searchId = document.getElementById("search-id-input").value;
-                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&idx={{ idx }}";
+                window.location.href = "/?species=" + encodeURIComponent(sp) + "&target_species=" + encodeURIComponent(tsp) + "&search_id=" + encodeURIComponent(searchId) + "&pred_type=" + encodeURIComponent(pt) + "&idx={{ idx }}";
             });
         }
 

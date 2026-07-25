@@ -21,11 +21,11 @@ spec:
             - -c
             - |
               aws --endpoint-url "$S3_ENDPOINT" s3 cp \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/20251031_066_pol_pro_Ran_ado_2025_4_Colorado2025.czi" \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/20251031_066_pol_pro_Ran_ado_2025_4_Colorado2025.czi" \
                 /mnt/czi_data/20251031_066_pol_pro_Ran_ado_2025_4_Colorado2025.czi \
                 --no-verify-ssl
               aws --endpoint-url "$S3_ENDPOINT" s3 cp \
-                "s3://$S3_BUCKET/PEG/Colorado/Source/Ran_ado/20251031_071_pol_pro_Ran_ado_2025_9_Colorado2025.czi" \
+                "s3://$S3_BUCKET/PEG/Colorado/Source/Pollen_production/Ran_ado/20251031_071_pol_pro_Ran_ado_2025_9_Colorado2025.czi" \
                 /mnt/czi_data/20251031_071_pol_pro_Ran_ado_2025_9_Colorado2025.czi \
                 --no-verify-ssl
               aws --endpoint-url "$S3_ENDPOINT" s3 cp \
