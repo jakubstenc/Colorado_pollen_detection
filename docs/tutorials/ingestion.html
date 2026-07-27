@@ -390,13 +390,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 │   │   └── ...
 ├── Pollen_deposition/
 │   └── ...</code></pre>
+<blockquote class="blockquote">
+<p>[!TIP] If your new <code>.czi</code> files are all dropped into a single bulk folder (e.g., <code>Source/260709_Pollen-Production</code>), you can use the <code>./reorganize_dataset.sh</code> script to automatically parse species codes from the filenames and move them into this exact required <code>Pollen_production/&lt;Species&gt;</code> folder structure.</p>
+</blockquote>
 </section>
 <section id="running-the-ingest" class="level2" data-number="3">
 <h2 data-number="3" class="anchored" data-anchor-id="running-the-ingest"><span class="header-section-number">3</span> 🛠️ Running the Ingest</h2>
 <section id="option-a-kubernetes-cluster-s3-upload" class="level3" data-number="3.1">
 <h3 data-number="3.1" class="anchored" data-anchor-id="option-a-kubernetes-cluster-s3-upload"><span class="header-section-number">3.1</span> Option A: Kubernetes Cluster (S3 Upload)</h3>
 <p>Best for large batches. This utilizes the cluster’s RAM to process all files and uploads a zipped <code>.zip</code> file archive to S3.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> k8s/deploy_czi.sh</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./deploy_czi.sh</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="option-b-local-execution-direct-to-cloud-mount" class="level3" data-number="3.2">
 <h3 data-number="3.2" class="anchored" data-anchor-id="option-b-local-execution-direct-to-cloud-mount"><span class="header-section-number">3.2</span> Option B: Local Execution (Direct to Cloud Mount)</h3>

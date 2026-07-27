@@ -12,10 +12,19 @@ def parse_results(file_path):
         
     csv_path = file_path
     if file_path.endswith('.pt'):
-        # Resolve symlink (e.g., latest.pt -> run_dir/weights/best.pt)
-        real_pt = os.path.realpath(file_path)
-        run_dir = os.path.dirname(os.path.dirname(real_pt))
-        csv_path = os.path.join(run_dir, "results.csv")
+        if os.path.islink(file_path):
+            # Resolve symlink (e.g., latest.pt -> run_dir/weights/best.pt)
+            real_pt = os.path.realpath(file_path)
+            run_dir = os.path.dirname(os.path.dirname(real_pt))
+            csv_path = os.path.join(run_dir, "results.csv")
+        else:
+            import glob
+            base_dir = os.path.dirname(file_path)
+            csv_files = glob.glob(os.path.join(base_dir, "*", "results.csv"))
+            if csv_files:
+                csv_path = max(csv_files, key=os.path.getmtime)
+            else:
+                csv_path = os.path.join(base_dir, "results.csv")
     
     if not os.path.exists(csv_path):
         return f"Model {csv_path} not found. Could not parse metrics."
