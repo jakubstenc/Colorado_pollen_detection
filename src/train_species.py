@@ -13,8 +13,8 @@ def train_species(dataset_dir):
     print(f"🚀 Training {run_name} on Species Classification...")
     print(f"📂 Dataset: {dataset_dir}")
     
-    # We use the vast native YOLOv8 Extra-Large image classification architecture
-    model = YOLO("yolov8x-cls.pt") 
+    # We use the fast YOLOv8 Small image classification architecture
+    model = YOLO("yolov8s-cls.pt") 
     
     results = model.train(
         data=dataset_dir,

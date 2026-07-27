@@ -31,12 +31,15 @@ The script expects a directory structure where species codes are embedded in fol
 │   └── ...
 ```
 
+> [!TIP]
+> If your new `.czi` files are all dropped into a single bulk folder (e.g., `Source/260709_Pollen-Production`), you can use the `./reorganize_dataset.sh` script to automatically parse species codes from the filenames and move them into this exact required `Pollen_production/<Species>` folder structure.
+
 ## 🛠️ Running the Ingest
 
 ### Option A: Kubernetes Cluster (S3 Upload)
 Best for large batches. This utilizes the cluster's RAM to process all files and uploads a zipped `.zip` file archive to S3.
 ```bash
-python k8s/deploy_czi.sh
+./deploy_czi.sh
 ```
 
 ### Option B: Local Execution (Direct to Cloud Mount)
