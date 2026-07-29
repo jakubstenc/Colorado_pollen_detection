@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-gpu
+  namespace: stenc-ns
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test
+      image: ttl.sh/pollen-train-d8c783dc:24h
+      command: ["python3", "-c", "import torch; print('CUDA available:', torch.cuda.is_available())"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1

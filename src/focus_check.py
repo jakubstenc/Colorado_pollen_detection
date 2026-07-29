@@ -30,8 +30,41 @@ def get_s3_client():
 
 def compute_focus_score(rgb_image):
     gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
-    score = cv2.Laplacian(gray, cv2.CV_64F).var()
-    return score
+    
+    # Process in chunks to avoid OOM on massive images
+    chunk_size = 4000
+    h, w = gray.shape
+    
+    n_pixels = h * w
+    sum_x = 0.0
+    sum_x2 = 0.0
+    
+    for y in range(0, h, chunk_size):
+        for x in range(0, w, chunk_size):
+            y_end = min(y + chunk_size, h)
+            x_end = min(x + chunk_size, w)
+            
+            y_start_pad = max(0, y - 1)
+            y_end_pad = min(h, y_end + 1)
+            x_start_pad = max(0, x - 1)
+            x_end_pad = min(w, x_end + 1)
+            
+            chunk = gray[y_start_pad:y_end_pad, x_start_pad:x_end_pad]
+            lap = cv2.Laplacian(chunk, cv2.CV_64F)
+            
+            valid_y_start = 1 if y > 0 else 0
+            valid_y_end = lap.shape[0] - (1 if y_end < h else 0)
+            valid_x_start = 1 if x > 0 else 0
+            valid_x_end = lap.shape[1] - (1 if x_end < w else 0)
+            
+            valid_lap = lap[valid_y_start:valid_y_end, valid_x_start:valid_x_end]
+            
+            sum_x += np.sum(valid_lap)
+            sum_x2 += np.sum(valid_lap ** 2)
+            
+    mean = sum_x / n_pixels
+    variance = (sum_x2 / n_pixels) - (mean ** 2)
+    return variance
 
 def main():
     import argparse

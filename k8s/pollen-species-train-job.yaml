@@ -16,7 +16,7 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: IMAGE_PLACEHOLDER
+          image: ttl.sh/pollen-train-d8c783dc:24h
           imagePullPolicy: Always
           command:
             - sh
@@ -43,11 +43,11 @@ spec:
               python3 /notify/notify.py --type training --job_name "YOLO Species Classifier" --results /app/models/species_classifier/latest.pt
           resources:
             limits:
-              memory: "32Gi"
+              memory: "64Gi"
               cpu: "8"
               nvidia.com/gpu: "1"
             requests:
-              memory: "16Gi"
+              memory: "32Gi"
               cpu: "4"
               nvidia.com/gpu: "1"
           env:
@@ -79,7 +79,7 @@ spec:
     - name: dshm
       emptyDir:
         medium: Memory
-        sizeLimit: "16Gi"
+        sizeLimit: "32Gi"
     - name: scripts-vol
       configMap:
         name: notify-script
