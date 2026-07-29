@@ -53,14 +53,15 @@ def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
         rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
         if rgb.dtype != np.uint8:
             if rgb.max() > 255:
-                rgb = (rgb / 256).astype(np.uint8)
+                # Use right shift to avoid float64 promotion which causes massive memory spikes (OOM)
+                rgb = (rgb >> 8).astype(np.uint8)
             else:
                 rgb = rgb.astype(np.uint8)
         if grayscale:
             import cv2
             gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
             rgb = np.stack([gray, gray, gray], axis=-1)
-        return rgb
+        return normalize_to_uint8(rgb)
 
     kwargs = {}
     if 'S' in img.dims.order: kwargs['S'] = 0
