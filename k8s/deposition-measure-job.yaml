@@ -4,10 +4,15 @@ metadata:
   name: pollen-deposition-measure
   namespace: stenc-ns
 spec:
+  completionMode: Indexed
+  completions: 5
+  parallelism: 5
   template:
     spec:
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -17,20 +22,25 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ttl.sh/pollen-measure-ce5dd649:24h
-          imagePullPolicy: Always
+          image: ultralytics/ultralytics:latest
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
             - |
               set -e
+              export HOME=/tmp
+              export PATH=$PATH:$HOME/.local/bin
+              echo "Bypassing ttl.sh outage: installing dependencies at runtime..."
+              pip install --user --no-cache-dir awscli aicsimageio dask imagecodecs boto3 aicspylibczi
               echo "Preparing container paths..."
-              mkdir -p /app/results
+              mkdir -p /tmp/results
+              cd /tmp
               
               echo "Finding latest YOLO general pollen model..."
               LATEST_FOLDER=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl | grep "PRE general_pollen_" | grep -v "eval" | awk '{print $2}' | sort | tail -n 1)
               echo "Downloading from: s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt"
-              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /app/best.pt --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /tmp/best.pt --no-verify-ssl
               
               echo "Running Deposition Measurement Pipeline..."
               python3 /app_scripts/measure_deposition.py
@@ -62,6 +72,8 @@ spec:
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
+            - mountPath: /tmp
+              name: tmp-volume
             - mountPath: /app_scripts
               name: python-scripts
       volumes:
@@ -69,6 +81,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: "16Gi"
+        - name: tmp-volume
+          emptyDir:
+            sizeLimit: "50Gi"
         - name: python-scripts
           configMap:
             name: deposition-measure-script
