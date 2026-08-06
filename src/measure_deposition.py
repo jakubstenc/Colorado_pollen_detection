@@ -36,6 +36,30 @@ def get_s3_client():
         verify=False
     )
 
+def nms_numpy(boxes, scores, iou_threshold=0.3):
+    if len(boxes) == 0:
+        return []
+    boxes = np.array(boxes)
+    scores = np.array(scores)
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+        iou = inter / (areas[i] + areas[order[1:]] - inter)
+        inds = np.where(iou <= iou_threshold)[0]
+        order = order[inds + 1]
+    return keep
+
 def main():
     s3 = get_s3_client()
     
@@ -148,6 +172,8 @@ def main():
             print(f"Focus Check: Score {blur_score:.2f} -> {status}")
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Error reading image {filename}: {e}")
             summary = {
                 "File": filename,
@@ -186,7 +212,7 @@ def main():
             # Generate summary and exit
             os.makedirs("results", exist_ok=True)
             pd.DataFrame([summary]).to_csv(f"results/summary_{filename}.csv", index=False)
-            pd.DataFrame(columns=["Grain_ID", "File", "Species_Predicted", "Class_Type", "Area_um2", "Circularity", "Conf"]).to_csv(f"results/measurements_{filename}.csv", index=False)
+            pd.DataFrame(columns=["Grain_ID", "File", "Species_Predicted", "Class_Type", "Area_um2", "Circularity", "Conf", "X_px", "Y_px"]).to_csv(f"results/measurements_{filename}.csv", index=False)
             print("Image is blurry. Summary generated. Exiting.")
             if local_czi.exists():
                 local_czi.unlink()
@@ -200,6 +226,10 @@ def main():
         al_base_prefix = f"PEG/Colorado/Species_model/Trainig_data/{stigma_species}"
         
         print("Processing tiles...")
+        global_detections = []
+        global_boxes = []
+        global_scores = []
+        
         for tile, tx, ty in tile_image(rgb, size=640, overlap=0.15):
             tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
             detections = extract_general_pollen(tile_bgr, general_model, conf_thresh=0.45)
@@ -249,28 +279,33 @@ def main():
                             class_id = 0
                             
                     display_text = f"{class_name} (Det: {d['conf']:.2f}, Cls: {class_conf:.2f})" if 'class_conf' in locals() else f"{class_name} (Det: {d['conf']:.2f})"
-                            
+                    
+                    # Draw on Tile Viz (For AL UI)
+                    cv2.polylines(viz_bgr, [poly_px.reshape((-1, 1, 2))], True, (0, 255, 0), 2)
+                    
+                    # Collect global detection for NMS
+                    global_poly = poly_px.copy()
+                    global_poly[:, 0] += tx
+                    global_poly[:, 1] += ty
+                    
+                    gx_min, gy_min = global_poly[:, 0].min(), global_poly[:, 1].min()
+                    gx_max, gy_max = global_poly[:, 0].max(), global_poly[:, 1].max()
+                    
+                    global_boxes.append([gx_min, gy_min, gx_max, gy_max])
+                    global_scores.append(d['conf'])
+                    
                     is_conspecific = (class_name.lower() == stigma_species.lower()) or (class_name.lower() == "conspecific")
-                    if is_conspecific:
-                        conspecific_count += 1
-                        class_type = "Conspecific"
-                        color = (0, 255, 0) # Green in RGB
-                    else:
-                        heterospecific_count += 1
-                        class_type = "Heterospecific"
-                        color = (255, 0, 0) # Red in RGB
-                        
-                    measurements.append({
-                        "Grain_ID": grain_id,
-                        "File": filename,
-                        "Day": day,
-                        "Month": month,
-                        "Day_of_Year": day_of_year,
-                        "Species_Predicted": class_name,
-                        "Class_Type": class_type,
-                        "Area_um2": round(area_um2, 2),
-                        "Circularity": round(circularity, 3),
-                        "Conf": round(d['conf'], 3)
+                    color = (0, 255, 0) if is_conspecific else (255, 0, 0)
+                    
+                    global_detections.append({
+                        'global_poly': global_poly,
+                        'class_id': class_id,
+                        'class_name': class_name,
+                        'conf': d['conf'],
+                        'area_um2': area_um2,
+                        'circularity': circularity,
+                        'display_text': display_text,
+                        'color': color
                     })
                     
                     # AL Label formatting
@@ -280,24 +315,6 @@ def main():
                     norm_xy[:, 1] /= H
                     coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in norm_xy)
                     lbl_lines.append(f"{class_id} {coords}")
-                    
-                    # Draw on Tile Viz
-                    cv2.polylines(viz_bgr, [poly_px.reshape((-1, 1, 2))], True, color, 2)
-                    
-                    # Draw on Overview
-                    global_poly = poly_px.copy()
-                    global_poly[:, 0] += tx
-                    global_poly[:, 1] += ty
-                    
-                    # Scale for downscaled overview image
-                    overview_poly = (global_poly * overview_scale).astype(int)
-                    
-                    cv2.polylines(overview_img, [overview_poly.reshape((-1, 1, 2))], True, color, 2)
-                    
-                    # Add text to overview
-                    px, py = overview_poly[0]
-                    cv2.putText(overview_img, display_text, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 2, cv2.LINE_AA)
-                    cv2.putText(overview_img, display_text, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1, cv2.LINE_AA)
                     
                 # Upload to S3 for AL UI
                 cv2.imwrite(f"/tmp/{stem}.jpg", tile_bgr)
@@ -313,6 +330,44 @@ def main():
                 os.remove(f"/tmp/{stem}.jpg")
                 os.remove(f"/tmp/{stem}_viz.jpg")
                 os.remove(f"/tmp/{stem}.txt")
+
+        # Process NMS on global overview
+        keep_indices = nms_numpy(global_boxes, global_scores, iou_threshold=0.3)
+        for idx in keep_indices:
+            det = global_detections[idx]
+            grain_id += 1
+            if det['class_name'] == "Conspecific":
+                conspecific_count += 1
+            elif det['class_name'] == "Heterospecific":
+                heterospecific_count += 1
+            else:
+                heterospecific_count += 1
+                
+            cx = int(det['global_poly'][:, 0].mean())
+            cy = int(det['global_poly'][:, 1].mean())
+                
+            measurements.append({
+                "Grain_ID": grain_id,
+                "File": filename,
+                "Day": day,
+                "Month": month,
+                "Day_of_Year": day_of_year,
+                "Species_Predicted": det['class_name'],
+                "Class_Type": "Conspecific" if det['class_name'] == "Conspecific" else "Heterospecific",
+                "Area_um2": round(det['area_um2'], 2),
+                "Circularity": round(det['circularity'], 3),
+                "Conf": round(det['conf'], 3),
+                "X_px": cx,
+                "Y_px": cy
+            })
+            
+            # Draw on Overview
+            overview_poly = (det['global_poly'] * overview_scale).astype(int)
+            cv2.polylines(overview_img, [overview_poly.reshape((-1, 1, 2))], True, det['color'], 2)
+            
+            px, py = overview_poly[0]
+            cv2.putText(overview_img, det['display_text'], (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 2, cv2.LINE_AA)
+            cv2.putText(overview_img, det['display_text'], (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1, cv2.LINE_AA)
 
         summary["Day"] = day
         summary["Month"] = month
