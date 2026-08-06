@@ -240,11 +240,15 @@ def main():
                         cls_res = species_model(crop, verbose=False)
                         if cls_res[0].probs is not None:
                             top_cls = cls_res[0].probs.top1
+                            class_conf = float(cls_res[0].probs.top1conf)
                             class_name = species_classes.get(top_cls, "Unknown")
                             class_id = top_cls
                         else:
                             class_name = "Unclassified_Pollen"
+                            class_conf = 0.0
                             class_id = 0
+                            
+                    display_text = f"{class_name} (Det: {d['conf']:.2f}, Cls: {class_conf:.2f})" if 'class_conf' in locals() else f"{class_name} (Det: {d['conf']:.2f})"
                             
                     is_conspecific = (class_name.lower() == stigma_species.lower()) or (class_name.lower() == "conspecific")
                     if is_conspecific:
@@ -292,8 +296,8 @@ def main():
                     
                     # Add text to overview
                     px, py = overview_poly[0]
-                    cv2.putText(overview_img, class_name, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,0), 3, cv2.LINE_AA)
-                    cv2.putText(overview_img, class_name, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 1, cv2.LINE_AA)
+                    cv2.putText(overview_img, display_text, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 2, cv2.LINE_AA)
+                    cv2.putText(overview_img, display_text, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1, cv2.LINE_AA)
                     
                 # Upload to S3 for AL UI
                 cv2.imwrite(f"/tmp/{stem}.jpg", tile_bgr)
