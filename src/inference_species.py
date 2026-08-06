@@ -145,6 +145,7 @@ def main():
     parser.add_argument("--model-cls", required=False, help="Path to best.pt species classification model (optional)")
     parser.add_argument("--manifest", default="/home/meow/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv")
     parser.add_argument("--force-species", default=None, help="Force all inferences explicitly into this exact output bucket bucket")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of images to process")
     args = parser.parse_args()
     
     registry = load_species_manifest(args.manifest) if args.model_cls else {}
@@ -158,6 +159,8 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     
     all_czis = sorted(Path(args.root).rglob("*.czi"))
+    if args.limit:
+        all_czis = all_czis[:args.limit]
     print(f"🔍 Found {len(all_czis)} .czi files to process.")
     
     all_summaries = []

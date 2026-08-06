@@ -1,0 +1,54 @@
+---
+title: "Model Performance"
+description: "Training metrics and diagnostic plots"
+---
+
+## 🌍 General Pollen Model
+
+This model serves as the first stage of the pipeline, acting as a general detector for all potential pollen grains across the slide regardless of species.
+
+- **Task**: Object Detection 
+- **Training Dataset**: 523 total annotated tiles (431 training images, 92 validation images)
+- **Annotations**: Bounding box annotations
+
+*(Placeholder for General Model training curves)*
+
+---
+
+## 🌻 Species-Specific Model
+
+This model operates on the objects extracted by the general model to perform final multi-species classification and segmentation.
+
+- **Task**: Instance Segmentation & Classification
+- **Training Dataset**: ~20,000 tiles
+- **Annotations**: Pseudo-labeled segmentations via SAM / YOLO
+
+### 📈 Diagnostic Metrics
+
+Here are the diagnostic plots from the latest training run of the species-specific model.
+
+#### Confusion Matrix
+![Confusion Matrix](./diagnostic_plots/confusion_matrix.png)
+
+![Normalized Confusion Matrix](./diagnostic_plots/confusion_matrix_normalized.png)
+
+#### F1 Curve
+![F1 Curve](./diagnostic_plots/BoxF1_curve.png)
+
+![Mask F1 Curve](./diagnostic_plots/MaskF1_curve.png)
+
+#### Precision-Recall Curve
+![PR Curve](./diagnostic_plots/BoxPR_curve.png)
+
+![Mask PR Curve](./diagnostic_plots/MaskPR_curve.png)
+
+### Validation Batches
+::: {layout-ncol=2}
+![Val Batch 0 Labels](./diagnostic_plots/val_batch0_labels.jpg)
+
+![Val Batch 0 Pred](./diagnostic_plots/val_batch0_pred.jpg)
+
+![Val Batch 1 Labels](./diagnostic_plots/val_batch1_labels.jpg)
+
+![Val Batch 1 Pred](./diagnostic_plots/val_batch1_pred.jpg)
+:::

@@ -21,41 +21,6 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
-/* CSS for syntax highlighting */
-html { -webkit-text-size-adjust: 100%; }
-pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-pre > code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-  }
-pre.numberSource { margin-left: 3em;  padding-left: 4px; }
-div.sourceCode
-  {   }
-@media screen {
-pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
 </style>
 
 
@@ -308,6 +273,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Results</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./model_performance.html"> 
+<span class="menu-text">Model Performance</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./article_methods.html"> 
 <span class="menu-text">Article Methods</span></a>
   </li>  
@@ -335,12 +304,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#processed-sample-tiles" id="toc-processed-sample-tiles" class="nav-link active" data-scroll-target="#processed-sample-tiles"><span class="header-section-number">1</span> 🖼️ Processed Sample Tiles</a></li>
-  <li><a href="#dataset-stats" id="toc-dataset-stats" class="nav-link" data-scroll-target="#dataset-stats"><span class="header-section-number">2</span> 📊 Dataset Stats</a></li>
-  <li><a href="#model-performance" id="toc-model-performance" class="nav-link" data-scroll-target="#model-performance"><span class="header-section-number">3</span> 📈 Model Performance</a></li>
-  <li><a href="#verifying-annotations" id="toc-verifying-annotations" class="nav-link" data-scroll-target="#verifying-annotations"><span class="header-section-number">4</span> 🔍 Verifying Annotations</a></li>
-  <li><a href="#remote-storage" id="toc-remote-storage" class="nav-link" data-scroll-target="#remote-storage"><span class="header-section-number">5</span> ☁️ Remote Storage</a></li>
-  <li><a href="#species-dataset-configuration" id="toc-species-dataset-configuration" class="nav-link" data-scroll-target="#species-dataset-configuration"><span class="header-section-number">6</span> ⚙️ Species Dataset Configuration</a></li>
+  <li><a href="#pollen-production-over-time" id="toc-pollen-production-over-time" class="nav-link active" data-scroll-target="#pollen-production-over-time"><span class="header-section-number">1</span> 📊 Pollen Production Over Time</a></li>
+  <li><a href="#pollen-deposition-over-time" id="toc-pollen-deposition-over-time" class="nav-link" data-scroll-target="#pollen-deposition-over-time"><span class="header-section-number">2</span> 📅 Pollen Deposition Over Time</a></li>
   </ul>
 </nav>
     </div>
@@ -372,68 +337,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="processed-sample-tiles" class="level2" data-number="1">
-<h2 data-number="1" class="anchored" data-anchor-id="processed-sample-tiles"><span class="header-section-number">1</span> 🖼️ Processed Sample Tiles</h2>
-<p>Below are examples of 640x640 tiles extracted from the large-scale scans.</p>
-<div class="quarto-layout-panel" data-layout-ncol="2">
-<div class="quarto-layout-row">
-<div class="quarto-layout-cell" style="flex-basis: 50.0%;justify-content: flex-start;">
+<section id="pollen-production-over-time" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="pollen-production-over-time"><span class="header-section-number">1</span> 📊 Pollen Production Over Time</h2>
+<p>The following graph shows the aggregated pollen production across the time-series samples. The data shows the average number of pollen grains per anther per day, with standard error bars.</p>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x003584_y000000.jpg" class="img-fluid figure-img"></p>
-<figcaption>Ran_ado Sample 1</figcaption>
+<p><img src="results/pollen_production_timeline.png" class="img-fluid figure-img"></p>
+<figcaption>Pollen Production Timeline</figcaption>
 </figure>
 </div>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 50.0%;justify-content: flex-start;">
+<p><a href="results/pollen_production_aggregated.csv">📥 Download Aggregated Production Dataset (CSV)</a></p>
+</section>
+<section id="pollen-deposition-over-time" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="pollen-deposition-over-time"><span class="header-section-number">2</span> 📅 Pollen Deposition Over Time</h2>
+<p>The following graph shows the aggregated pollen deposition detected across the time-series samples. The data shows the average pollen grains per image per day, specifically highlighting <strong>Conspecific</strong> pollen, with standard error bars.</p>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="./sample_tiles/train/images/Ran_ado_20251031_001_pol_pro_Ran_ado_2025_32_Colorado2025_x011264_y001024.jpg" class="img-fluid figure-img"></p>
-<figcaption>Ran_ado Sample 2</figcaption>
+<p><img src="results/pollen_deposition_timeline.png" class="img-fluid figure-img"></p>
+<figcaption>Pollen Deposition Timeline</figcaption>
 </figure>
 </div>
-</div>
-</div>
-</div>
-</section>
-<section id="dataset-stats" class="level2" data-number="2">
-<h2 data-number="2" class="anchored" data-anchor-id="dataset-stats"><span class="header-section-number">2</span> 📊 Dataset Stats</h2>
-<p><em>As of March 2026:</em></p>
-<ul>
-<li><strong>Species</strong>: <code>Ran_ado</code></li>
-<li><strong>Total Tiles</strong>: ~20,000</li>
-<li><strong>Resolution</strong>: 0.88 µm/px</li>
-<li><strong>Annotations</strong>: Pseudo-labeled via SAM/YOLOv11</li>
-</ul>
-</section>
-<section id="model-performance" class="level2" data-number="3">
-<h2 data-number="3" class="anchored" data-anchor-id="model-performance"><span class="header-section-number">3</span> 📈 Model Performance</h2>
-<p><em>(Placeholder for future training metrics)</em></p>
-<ul>
-<li><strong>mAP@50</strong>: —</li>
-<li><strong>Precision</strong>: —</li>
-<li><strong>Recall</strong>: —</li>
-</ul>
-</section>
-<section id="verifying-annotations" class="level2" data-number="4">
-<h2 data-number="4" class="anchored" data-anchor-id="verifying-annotations"><span class="header-section-number">4</span> 🔍 Verifying Annotations</h2>
-<p>To confirm the quality of the pseudo-labeled segmentations, use the <code>visualize_labels.py</code> script:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> src/visualize_labels.py <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--images</span> ./dataset_ran_ado/train/images <span class="dt">\</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--labels</span> ./dataset_ran_ado/train/labels <span class="dt">\</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--out</span> ./verification_viz <span class="dt">\</span></span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--num</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This will generate 20 random samples in <code>./verification_viz</code> with the segmentation polygons overlaid on the tiles. Inspect these images to ensure: 1. Polygons tightly fit the pollen grains. 2. The species classification is correct. 3. No significant background noise is being labeled.</p>
-</section>
-<section id="remote-storage" class="level2" data-number="5">
-<h2 data-number="5" class="anchored" data-anchor-id="remote-storage"><span class="header-section-number">5</span> ☁️ Remote Storage</h2>
-<p>Full datasets and models are stored on CESNET S3: - <strong>Bucket</strong>: <code>bucket</code> - <strong>Datasets</strong>: <code>PEG/Colorado/Staged_area/</code> - <strong>Detections</strong>: <code>PEG/Colorado/Detected/</code> - <strong>Models</strong>: <code>PEG/Colorado/trained_models/</code></p>
-</section>
-<section id="species-dataset-configuration" class="level2" data-number="6">
-<h2 data-number="6" class="anchored" data-anchor-id="species-dataset-configuration"><span class="header-section-number">6</span> ⚙️ Species Dataset Configuration</h2>
-<p>To give users full dynamic control over the massive Multi-Species model index, the dataset taxonomy has been completely decoupled from the codebase into an external configuration manifest.</p>
-<p>You can freely inject, override, or classify new species targets (e.g.&nbsp;<code>Gen_alg</code>) by editing the <code>src/species_manifest.csv</code> file mapping directly inside this repository.</p>
-<p>The Kubernetes pipeline seamlessly syncs this mapping table upon build and natively routes CZI binary processing identically to the table rules without needing deep-code interventions.</p>
+<p><a href="results/pollen_deposition_aggregated.csv">📥 Download Aggregated Deposition Dataset (CSV)</a></p>
 
 
 </section>

@@ -6,11 +6,11 @@ from datetime import datetime
 
 MODEL_DIR = os.getenv("MODEL_DIR", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/species_classifier")
 
-def train_species(dataset_dir):
+def train_species(dataset_dir, target_species):
     os.makedirs(MODEL_DIR, exist_ok=True)
-    run_name = f"species_classifier_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    run_name = f"species_classifier_{target_species}_{datetime.now().strftime('%Y%m%d_%H%M')}"
     
-    print(f"🚀 Training {run_name} on Species Classification...")
+    print(f"🚀 Training {run_name} on Binary Species Classification (Conspecific vs Heterospecific)...")
     print(f"📂 Dataset: {dataset_dir}")
     
     # We use the fast YOLOv8 Small image classification architecture
@@ -50,16 +50,22 @@ def train_species(dataset_dir):
     best_weights = os.path.join(actual_save_dir, "weights", "best.pt")
     
     import shutil
-    # Copy to latest.pt for pipeline compatibility
-    latest_copy = os.path.join(MODEL_DIR, "latest.pt")
+    # Copy to the new binary classifier name
+    target_model_name = os.path.join(MODEL_DIR, f"species_classifier_{target_species}.pt")
     if os.path.exists(best_weights):
+        shutil.copy(best_weights, target_model_name)
+        
+        # Also copy to latest.pt just for pipeline backwards compatibility
+        latest_copy = os.path.join(MODEL_DIR, "latest.pt")
         shutil.copy(best_weights, latest_copy)
-        print(f"✅ Species Training (cls) Complete! Target model saved to: {latest_copy}")
+        
+        print(f"✅ Binary Species Training (cls) Complete! Target model saved to: {target_model_name}")
     else:
         print("⚠️ Training completed but could not find best.pt!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train the specific species classification model (YOLOv8-cls).")
+    parser = argparse.ArgumentParser(description="Train the specific binary species classification model (YOLOv8-cls).")
     parser.add_argument("--dataset", required=True, help="Path to classification dataset root directory containing train/ and val/")
+    parser.add_argument("--target_species", type=str, default="Ran_ado", help="Target species the model was trained for")
     args = parser.parse_args()
-    train_species(args.dataset)
+    train_species(args.dataset, args.target_species)

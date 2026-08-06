@@ -6,6 +6,7 @@ project:
     - tutorials/ingestion.qmd
     - tutorials/species_pipeline.qmd
     - results.qmd
+    - model_performance.qmd
     - article_methods.qmd
 
 
@@ -24,6 +25,8 @@ website:
         text: Species Pipeline
       - href: results.qmd
         text: Results
+      - href: model_performance.qmd
+        text: Model Performance
       - href: article_methods.qmd
         text: Article Methods
     right:

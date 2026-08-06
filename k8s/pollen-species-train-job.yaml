@@ -6,6 +6,7 @@ metadata:
 spec:
   securityContext:
     runAsNonRoot: true
+    runAsUser: 1000
     seccompProfile:
       type: RuntimeDefault
   restartPolicy: Never
@@ -16,31 +17,39 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: ttl.sh/pollen-train-d8c783dc:24h
-          imagePullPolicy: Always
+          image: ultralytics/ultralytics:latest
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
             - |
+              set -e
+              export HOME=/tmp
+              export PATH=$PATH:$HOME/.local/bin
+              cd /tmp
+              
+              echo "Bypassing ttl.sh outage: installing dependencies at runtime..."
+              pip install --user --no-cache-dir s5cmd boto3 awscli
+              
               echo "Preparing container paths..."
-              mkdir -p /app/dataset_species /app/models/species_classifier
+              mkdir -p /tmp/dataset_species /tmp/models/species_classifier /tmp/classification_dataset
               
               echo "Downloading generated classification datasets via S3..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" /app/dataset_species/ --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" /tmp/dataset_species/ --no-verify-ssl
               
               echo "Starting YOLOv8 Species Classification Training..."
-              export MODEL_DIR=/app/models/species_classifier/
+              export MODEL_DIR=/tmp/models/species_classifier/
               
               echo "Extracting classification crops from tiles..."
-              python3 /scripts/extract_crops.py --src /app/dataset_species --out /app/classification_dataset
+              python3 /scripts/extract_crops.py --src /tmp/dataset_species --out /tmp/classification_dataset --target_species Ran_ado
               
-              python3 /scripts/train_species.py --dataset /app/classification_dataset
+              python3 /scripts/train_species.py --dataset /tmp/classification_dataset --target_species Ran_ado
               
               echo "Uploading best weights to S3..."
-              s5cmd --endpoint-url "$S3_ENDPOINT" --no-verify-ssl sync "/app/models/species_classifier/*" "s3://$S3_BUCKET/PEG/Colorado/trained_models/species_classifier/"
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync "/tmp/models/species_classifier/" "s3://$S3_BUCKET/PEG/Colorado/trained_models/species_classifier/" --no-verify-ssl
               
               echo "Generating Email notification..."
-              python3 /notify/notify.py --type training --job_name "YOLO Species Classifier" --results /app/models/species_classifier/latest.pt
+              python3 /notify/notify.py --type training --job_name "YOLO Species Classifier" --results /tmp/models/species_classifier/latest.pt
           resources:
             limits:
               memory: "64Gi"
@@ -73,13 +82,18 @@ spec:
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
+            - mountPath: /scripts
+              name: python-scripts
             - mountPath: /notify
-              name: scripts-vol
+              name: notify-script-vol
   volumes:
     - name: dshm
       emptyDir:
         medium: Memory
         sizeLimit: "32Gi"
-    - name: scripts-vol
+    - name: python-scripts
+      configMap:
+        name: species-train-scripts
+    - name: notify-script-vol
       configMap:
         name: notify-script

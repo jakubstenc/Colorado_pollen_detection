@@ -112,23 +112,19 @@ def main():
         try:
             img = AICSImage(str(local_czi))
             
-            # Fast path for 3-channel brightfield images to avoid massive memory spikes
-            # in normalize_to_uint8 contrast stretching
-            if 'S' in img.dims.order and getattr(img.dims, 'S', 1) == 3:
-                rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
-                if rgb.dtype != np.uint8:
-                    if rgb.max() > 255:
-                        rgb = (rgb >> 8).astype(np.uint8)
-                    else:
-                        rgb = rgb.astype(np.uint8)
-            else:
-                rgb = get_mip_rgb(img)
+            # Extract RGB with consistent contrast stretching
+            rgb = get_mip_rgb(img)
             
             px_size = getattr(img.physical_pixel_sizes, 'X', 1.0) # Default to 1.0 if None
             if px_size is None:
                 px_size = 1.0
                 
             print(f"Physical Pixel Size: {px_size} um/pixel")
+            
+            # Scale Normalization (match production training data scale)
+            if px_size is not None and px_size < 0.65:
+                rgb = cv2.resize(rgb, (rgb.shape[1] // 2, rgb.shape[0] // 2), interpolation=cv2.INTER_AREA)
+                px_size *= 2.0  # Adjust pixel size so physical measurements (area) remain accurate
             
             # Downscale the overview image early to avoid massive memory usage and OOMs
             # This reduces memory from ~9GB to ~100MB during Laplacian computation
@@ -145,13 +141,8 @@ def main():
             else:
                 overview_img = rgb.copy()
         
-            # 2. Focus Check (match focus_check.py logic)
-            if px_size is not None and px_size < 0.65:
-                focus_img = cv2.resize(rgb, (rgb.shape[1] // 2, rgb.shape[0] // 2), interpolation=cv2.INTER_AREA)
-            else:
-                focus_img = rgb
-            
-            blur_score = compute_focus_score(focus_img)
+            # Focus Check (match focus_check.py logic)
+            blur_score = compute_focus_score(rgb)
             is_focused = blur_score >= 10.0
             status = "OK" if is_focused else "BLURRY"
             print(f"Focus Check: Score {blur_score:.2f} -> {status}")
@@ -173,7 +164,8 @@ def main():
             os.makedirs("results", exist_ok=True)
             out_summary_path = f"results/summary_{filename}.csv"
             pd.DataFrame([summary]).to_csv(out_summary_path, index=False)
-            s3.upload_file(out_summary_path, s3_bucket, f"PEG/Colorado/Detected/{Path(out_summary_path).name}")
+            s3_dest_prefix = f"PEG/Colorado/Detected/Pollen_deposition/{stigma_species}"
+            s3.upload_file(out_summary_path, s3_bucket, f"{s3_dest_prefix}/{Path(out_summary_path).name}")
             
             if local_czi.exists():
                 local_czi.unlink()
@@ -209,11 +201,11 @@ def main():
         
         print("Processing tiles...")
         for tile, tx, ty in tile_image(rgb, size=640, overlap=0.15):
-            detections = extract_general_pollen(tile, general_model, conf_thresh=0.25)
+            tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+            detections = extract_general_pollen(tile_bgr, general_model, conf_thresh=0.45)
             
             if len(detections) > 0:
                 stem = f"{stigma_species}_{local_czi.stem}_x{tx:06d}_y{ty:06d}"
-                tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
                 viz_bgr = tile_bgr.copy()
                 lbl_lines = []
                 
@@ -227,6 +219,9 @@ def main():
                     
                     area_um2 = area_px * (px_size ** 2)
                     
+                    if area_um2 < 100.0:
+                        continue
+                    
                     if perimeter_px > 0:
                         circularity = 4 * np.pi * area_px / (perimeter_px ** 2)
                     else:
@@ -236,7 +231,7 @@ def main():
                     x_min, y_min = poly_px[:, 0].min(), poly_px[:, 1].min()
                     x_max, y_max = poly_px[:, 0].max(), poly_px[:, 1].max()
                     
-                    crop = tile[max(0, y_min):min(tile.shape[0], y_max), max(0, x_min):min(tile.shape[1], x_max)]
+                    crop = tile_bgr[max(0, y_min):min(tile_bgr.shape[0], y_max), max(0, x_min):min(tile_bgr.shape[1], x_max)]
                     
                     if crop.size == 0:
                         class_name = "Unknown"
@@ -251,15 +246,15 @@ def main():
                             class_name = "Unclassified_Pollen"
                             class_id = 0
                             
-                    is_conspecific = (class_name.lower() == stigma_species.lower())
+                    is_conspecific = (class_name.lower() == stigma_species.lower()) or (class_name.lower() == "conspecific")
                     if is_conspecific:
                         conspecific_count += 1
                         class_type = "Conspecific"
-                        color = (0, 255, 0)
+                        color = (0, 255, 0) # Green in RGB
                     else:
                         heterospecific_count += 1
                         class_type = "Heterospecific"
-                        color = (0, 0, 255)
+                        color = (255, 0, 0) # Red in RGB
                         
                     measurements.append({
                         "Grain_ID": grain_id,
@@ -335,10 +330,11 @@ def main():
         cv2.imwrite(str(out_img_path), overview_bgr)
         
         # Upload to S3
-        print("Uploading results to S3...")
-        s3.upload_file(str(out_img_path), s3_bucket, f"PEG/Colorado/Detected/{out_img_path.name}")
-        s3.upload_file(str(out_csv_path), s3_bucket, f"PEG/Colorado/Detected/{Path(out_csv_path).name}")
-        s3.upload_file(str(out_summary_path), s3_bucket, f"PEG/Colorado/Detected/{Path(out_summary_path).name}")
+        s3_dest_prefix = f"PEG/Colorado/Detected/Pollen_deposition/{stigma_species}"
+        print(f"Uploading results to S3 ({s3_dest_prefix})...")
+        s3.upload_file(str(out_img_path), s3_bucket, f"{s3_dest_prefix}/{out_img_path.name}")
+        s3.upload_file(str(out_csv_path), s3_bucket, f"{s3_dest_prefix}/{Path(out_csv_path).name}")
+        s3.upload_file(str(out_summary_path), s3_bucket, f"{s3_dest_prefix}/{Path(out_summary_path).name}")
         
         # Cleanup
         if local_czi.exists():

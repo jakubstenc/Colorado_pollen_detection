@@ -32,16 +32,35 @@ def load_species_manifest(manifest_path):
     return registry
 
 def normalize_to_uint8(arr: np.ndarray) -> np.ndarray:
-    """Per-channel 0.5-99.5 percentile contrast stretch -> uint8 RGB."""
-    out = np.zeros(arr.shape[:2] + (arr.shape[2],), dtype=np.uint8)
-    for c in range(arr.shape[2]):
-        ch = arr[..., c].astype(np.float32)
-        valid = ch[ch > 0]
-        if valid.size == 0:
-            continue
-        lo, hi = np.percentile(valid, [0.5, 99.5])
-        ch = np.clip((ch - lo) / (hi - lo + 1e-8), 0, 1) * 255.0
-        out[..., c] = ch.astype(np.uint8)
+    """Memory efficient global 0.5-99.5 percentile contrast stretch -> uint8 RGB."""
+    out = np.zeros_like(arr, dtype=np.uint8)
+    
+    # Subsample for percentile computation if image is huge
+    stride = max(1, min(arr.shape[0], arr.shape[1]) // 1000)
+    
+    # Compute percentiles globally across all channels to preserve color balance
+    sample_all = arr[::stride, ::stride, :].astype(np.float32)
+    valid_sample = sample_all[sample_all > 0]
+    
+    if valid_sample.size == 0:
+        lo, hi = 0.0, 255.0
+    else:
+        lo, hi = np.percentile(valid_sample, [0.5, 99.5])
+        if lo == hi:
+            hi = lo + 1.0
+            
+    # Process in chunks to save memory
+    chunk_size = 4000
+    for c in range(arr.shape[-1]):
+        for y in range(0, arr.shape[0], chunk_size):
+            y_end = min(y + chunk_size, arr.shape[0])
+            for x in range(0, arr.shape[1], chunk_size):
+                x_end = min(x + chunk_size, arr.shape[1])
+                
+                chunk = arr[y:y_end, x:x_end, c].astype(np.float32)
+                chunk = np.clip((chunk - lo) / (hi - lo + 1e-8), 0, 1) * 255.0
+                out[y:y_end, x:x_end, c] = chunk.astype(np.uint8)
+                
     return out
 
 def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
@@ -50,18 +69,22 @@ def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
     Returns uint8 RGB array (H, W, 3).
     """
     if 'S' in img.dims.order and getattr(img.dims, 'S', 1) == 3:
-        rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
-        if rgb.dtype != np.uint8:
-            if rgb.max() > 255:
-                # Use right shift to avoid float64 promotion which causes massive memory spikes (OOM)
-                rgb = (rgb >> 8).astype(np.uint8)
+        try:
+            rgb = img.get_image_data("YXS", T=0, C=0, Z=0)
+        except ValueError:
+            d = np.squeeze(img.data)
+            if len(d.shape) == 3 and d.shape[0] == 3:
+                rgb = np.transpose(d, (1, 2, 0))
             else:
-                rgb = rgb.astype(np.uint8)
+                rgb = d
+                
+        rgb = normalize_to_uint8(rgb)
+        
         if grayscale:
             import cv2
             gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
             rgb = np.stack([gray, gray, gray], axis=-1)
-        return normalize_to_uint8(rgb)
+        return rgb
 
     kwargs = {}
     if 'S' in img.dims.order: kwargs['S'] = 0
@@ -76,6 +99,11 @@ def get_mip_rgb(img, channels=(0, 1, 2), grayscale=False) -> np.ndarray:
         mip = dask_czyx[c].max(axis=0)
         if hasattr(mip, 'compute'):
             mip = mip.compute()
+            
+        if len(mip.shape) == 3 and mip.shape[-1] == 3:
+            # The underlying reader returned an RGB array directly despite the CZYX request
+            return normalize_to_uint8(mip)
+            
         channels_data.append(mip)
 
     if grayscale and len(channels_data) > 0:

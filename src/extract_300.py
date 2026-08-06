@@ -59,6 +59,8 @@ def get_mip_rgb(img, channels: list[int]) -> np.ndarray:
     
     for c in target_channels:
         mip = dask_czyx[c].max(axis=0).compute()
+        if len(mip.shape) == 3 and mip.shape[-1] == 3:
+            return mip
         channels_data.append(mip)
 
     while len(channels_data) < 3:

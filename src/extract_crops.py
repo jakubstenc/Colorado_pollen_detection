@@ -66,6 +66,7 @@ def main():
     parser.add_argument("--out", required=True, help="Output YOLO Classification dataset directory")
     parser.add_argument("--pad", type=float, default=0.20, help="Padding fraction around bounding box (default: 0.20)")
     parser.add_argument("--split", type=float, default=0.8, help="Train split fraction")
+    parser.add_argument("--target_species", type=str, default="Ran_ado", help="Target species for Conspecific vs Heterospecific binary classification")
     args = parser.parse_args()
     
     src_dir = Path(args.src)
@@ -97,8 +98,10 @@ def main():
         if not img_dir.exists() or not lbl_dir.exists():
             continue
             
-        (out_dir / "train" / species_code).mkdir(parents=True, exist_ok=True)
-        (out_dir / "val" / species_code).mkdir(parents=True, exist_ok=True)
+        binary_class = "Conspecific" if species_code.lower() == args.target_species.lower() else "Heterospecific"
+        
+        (out_dir / "train" / binary_class).mkdir(parents=True, exist_ok=True)
+        (out_dir / "val" / binary_class).mkdir(parents=True, exist_ok=True)
         
         images = sorted(list(img_dir.glob("*.jpg")))
         crops_extracted = 0
@@ -115,7 +118,7 @@ def main():
                 is_train = random.random() < args.split
                 split = "train" if is_train else "val"
                 
-                crop_dst = out_dir / split / species_code / f"{img_path.stem}_crop_{idx:03d}.jpg"
+                crop_dst = out_dir / split / binary_class / f"{img_path.stem}_crop_{idx:03d}.jpg"
                 cv2.imwrite(str(crop_dst), crop)
                 
                 if is_train:

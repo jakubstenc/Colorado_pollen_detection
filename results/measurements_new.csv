@@ -1,0 +1,15 @@
+Grain_ID,File,Day,Month,Day_of_Year,Species_Predicted,Class_Type,Area_um2,Circularity,Conf
+1,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,16.76,0.338,0.256
+2,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,22.28,0.833,0.902
+3,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,8.14,0.733,0.797
+4,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,17.34,0.724,0.422
+5,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,3.97,0.58,0.683
+6,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,17.34,0.724,0.473
+7,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,2.23,0.803,0.26
+8,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,2.13,0.488,0.36
+9,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,6.78,0.529,0.503
+10,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Heterospecific,Heterospecific,6.78,0.529,0.452
+11,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,111.87,0.863,0.811
+12,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,109.84,0.852,0.734
+13,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,110.03,0.86,0.829
+14,20260701_001_Dep_Ran_Ado_24_7_161b_Colorado2025.czi,24,7,205,Conspecific,Heterospecific,108.48,0.863,0.719

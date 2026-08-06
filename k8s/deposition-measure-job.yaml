@@ -5,8 +5,8 @@ metadata:
   namespace: stenc-ns
 spec:
   completionMode: Indexed
-  completions: 5
-  parallelism: 5
+  completions: 1
+  parallelism: 1
   template:
     spec:
       securityContext:
@@ -55,6 +55,8 @@ spec:
               memory: "16Gi"
               cpu: "4"
           env:
+            - name: JOB_COMPLETIONS
+              value: "1"
             - name: S3_ENDPOINT
               value: "https://s3.cl4.du.cesnet.cz"
             - name: S3_BUCKET

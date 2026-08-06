@@ -301,6 +301,10 @@ window.Quarto = {
 <span class="menu-text">Results</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./model_performance.html"> 
+<span class="menu-text">Model Performance</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link active" href="./article_methods.html" aria-current="page"> 
 <span class="menu-text">Article Methods</span></a>
   </li>  
@@ -332,8 +336,9 @@ window.Quarto = {
   <ul class="collapse">
   <li><a href="#image-preprocessing-and-tiling-strategy" id="toc-image-preprocessing-and-tiling-strategy" class="nav-link" data-scroll-target="#image-preprocessing-and-tiling-strategy"><span class="header-section-number">1.1</span> 2.1. Image Preprocessing and Tiling Strategy</a></li>
   <li><a href="#two-stage-deep-learning-architecture" id="toc-two-stage-deep-learning-architecture" class="nav-link" data-scroll-target="#two-stage-deep-learning-architecture"><span class="header-section-number">1.2</span> 2.2. Two-Stage Deep Learning Architecture</a></li>
-  <li><a href="#continuous-active-learning-and-annotation" id="toc-continuous-active-learning-and-annotation" class="nav-link" data-scroll-target="#continuous-active-learning-and-annotation"><span class="header-section-number">1.3</span> 2.3. Continuous Active Learning and Annotation</a></li>
-  <li><a href="#computational-environment-and-inference" id="toc-computational-environment-and-inference" class="nav-link" data-scroll-target="#computational-environment-and-inference"><span class="header-section-number">1.4</span> 2.4. Computational Environment and Inference</a></li>
+  <li><a href="#data-collection-production-vs.-deposition" id="toc-data-collection-production-vs.-deposition" class="nav-link" data-scroll-target="#data-collection-production-vs.-deposition"><span class="header-section-number">1.3</span> 2.3. Data Collection: Production vs.&nbsp;Deposition</a></li>
+  <li><a href="#continuous-active-learning-and-annotation" id="toc-continuous-active-learning-and-annotation" class="nav-link" data-scroll-target="#continuous-active-learning-and-annotation"><span class="header-section-number">1.4</span> 2.4. Continuous Active Learning and Annotation</a></li>
+  <li><a href="#computational-environment-and-inference" id="toc-computational-environment-and-inference" class="nav-link" data-scroll-target="#computational-environment-and-inference"><span class="header-section-number">1.5</span> 2.5. Computational Environment and Inference</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -370,16 +375,24 @@ window.Quarto = {
 </section>
 <section id="two-stage-deep-learning-architecture" class="level2" data-number="1.2">
 <h2 data-number="1.2" class="anchored" data-anchor-id="two-stage-deep-learning-architecture"><span class="header-section-number">1.2</span> 2.2. Two-Stage Deep Learning Architecture</h2>
-<p>To maximize both detection recall on heterogeneous biological backgrounds (such as messy stigmas) and taxonomic classification precision, the detection pipeline was bifurcated into a two-stage cascaded architecture using the Ultralytics YOLOv8 framework.</p>
-<p><strong>Stage 1: General Pollen Instance Segmentation</strong> A YOLOv8-Large Instance Segmentation model (<code>yolov8l-seg</code>) was trained to detect any biological structure morphologically consistent with a pollen grain. During this stage, all species-specific class labels were collapsed into a singular <code>pollen</code> class (Class ID 0). This stage prioritized high-recall boundary detection over taxonomy. The model was trained for 500 epochs with dynamic augmentations including HSV color perturbation, multi-scale mosaic, and mixup to induce robustness against overlapping structures.</p>
-<p><strong>Stage 2: Species-Specific Classification</strong> Following Stage 1 inference, the identified polygon boundaries were utilized to dynamically crop the pollen grains from the source image. These standardized, isolated crops were then fed into a secondary YOLOv8-Extra-Large Image Classification model (<code>yolov8x-cls</code>). This model was exclusively trained on pure, manually curated reference pollen (e.g., <em>Ranunculus adoneus</em>) extracted directly from pristine anther scans. This two-stage decoupling prevents the classification model from learning irrelevant stigma background noise.</p>
+<p>To maximize both detection recall on heterogeneous biological backgrounds (such as messy stigmas) and taxonomic classification precision, the detection pipeline was bifurcated into a two-stage cascaded architecture using the Ultralytics YOLOv11 framework.</p>
+<p><strong>Stage 1: General Pollen Object Detection</strong> A YOLOv11 model was trained to detect any biological structure morphologically consistent with a pollen grain. During this stage, all species-specific class labels were collapsed into a singular <code>pollen</code> class (Class ID 0). This stage prioritized high-recall boundary detection over taxonomy.</p>
+<p><strong>Stage 2: Species-Specific Instance Segmentation and Classification</strong> Following Stage 1 inference, the identified bounding boxes were utilized to dynamically isolate the pollen grains from the source image. These were then fed into a secondary YOLOv11-seg model. This model was trained on pseudo-labeled reference pollen extracted directly from pristine anther scans (Pollen Production). This two-stage decoupling prevents the classification model from learning irrelevant stigma background noise.</p>
 </section>
-<section id="continuous-active-learning-and-annotation" class="level2" data-number="1.3">
-<h2 data-number="1.3" class="anchored" data-anchor-id="continuous-active-learning-and-annotation"><span class="header-section-number">1.3</span> 2.3. Continuous Active Learning and Annotation</h2>
+<section id="data-collection-production-vs.-deposition" class="level2" data-number="1.3">
+<h2 data-number="1.3" class="anchored" data-anchor-id="data-collection-production-vs.-deposition"><span class="header-section-number">1.3</span> 2.3. Data Collection: Production vs.&nbsp;Deposition</h2>
+<p>Biological samples were systematically collected and analyzed under two distinct regimes:</p>
+<ol type="1">
+<li><strong>Pollen Production:</strong> Samples were extracted directly from the anthers of collected specimens (e.g., <em>Ranunculus adoneus</em>, <em>Gentiana algida</em>, <em>Sedum lanceolatum</em>, <em>Caltha chionophila</em>, <em>Viola adunca</em>). These pristine samples provided the pure, mono-specific reference material necessary for training the species-specific Stage 2 classification model and measuring absolute pollen volume per flower.</li>
+<li><strong>Pollen Deposition:</strong> Samples were collected from stigmas or natural environmental traps to evaluate inter-species pollen transfer and pollination network dynamics. The dual-stage model independently predicted the taxonomic identity of each pollen grain deposited on these surfaces, allowing for quantitative time-series analysis of conspecific versus heterospecific pollen loads.</li>
+</ol>
+</section>
+<section id="continuous-active-learning-and-annotation" class="level2" data-number="1.4">
+<h2 data-number="1.4" class="anchored" data-anchor-id="continuous-active-learning-and-annotation"><span class="header-section-number">1.4</span> 2.4. Continuous Active Learning and Annotation</h2>
 <p>To continuously adapt the model to novel pollen orientations and previously unseen biological debris, a human-in-the-loop Active Learning interface was developed. The system allows domain experts to rapidly triage Stage 1 predictions on novel data: 1. <strong>Acceptance:</strong> Perfect segmentations are committed immediately to the <code>Curated_Retrain_Data</code> repository. 2. <strong>Hard Negatives:</strong> Erroneous detections (e.g., misidentified debris) are rejected and stored with empty annotation matrices to explicitly penalize the model in future training cycles. 3. <strong>Manual Refinement:</strong> Imprecise polygons are passed through a data pipeline to Roboflow, where experts manually redraw the physical boundaries using semantic polygon tools before reintegrating them into the training corpus.</p>
 </section>
-<section id="computational-environment-and-inference" class="level2" data-number="1.4">
-<h2 data-number="1.4" class="anchored" data-anchor-id="computational-environment-and-inference"><span class="header-section-number">1.4</span> 2.4. Computational Environment and Inference</h2>
+<section id="computational-environment-and-inference" class="level2" data-number="1.5">
+<h2 data-number="1.5" class="anchored" data-anchor-id="computational-environment-and-inference"><span class="header-section-number">1.5</span> 2.5. Computational Environment and Inference</h2>
 <p>Model training and heavy preprocessing workloads were orchestrated as distributed containerized jobs via Kubernetes on the CESNET MetaCentrum High-Performance Computing cluster, utilizing NVIDIA A100 and A40 Tensor Core GPUs. Post-inference, the pipeline reconstructs the <span class="math inline">\(640 \times 640\)</span> predictions into downscaled <span class="math inline">\(2000\)</span>-pixel macro-stitches with superimposed polygon masks for rapid visual verification, alongside tabular CSV exports containing spatial coordinates and morphological area (<span class="math inline">\(\mu m^2\)</span>) metrics for each detected grain.</p>
 
 

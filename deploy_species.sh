@@ -1,19 +1,13 @@
 #!/bin/bash
 set -e
 
-RANDOM_ID=$(openssl rand -hex 4)
-IMAGE_NAME="ttl.sh/pollen-species-train-${RANDOM_ID}:24h"
 NAMESPACE="stenc-ns"
 
 echo "─────────────────────────────────────────────────"
 echo "🚀 YOLOv8 SPECIES Training Deployment to K8s"
 echo "─────────────────────────────────────────────────"
 
-echo "1. Building Docker image with new classification pipelines: $IMAGE_NAME"
-docker build -f Dockerfile.train -t "$IMAGE_NAME" .
-
-echo "2. Pushing image to ttl.sh repository..."
-docker push "$IMAGE_NAME"
+echo "Bypassing ttl.sh (outage). Mounting scripts via ConfigMap."
 
 # Locate kubectl
 if command -v kubectl &>/dev/null; then
@@ -27,11 +21,15 @@ fi
 
 [ -f "./kubeconfig.yaml" ] && export KUBECONFIG="$(pwd)/kubeconfig.yaml"
 
-echo "3. Cleaning up old species training jobs..."
+echo "1. Cleaning up old species training jobs and configmaps..."
 $KUBECTL delete pod pollen-train-species -n $NAMESPACE --ignore-not-found
+$KUBECTL delete configmap species-train-scripts -n $NAMESPACE --ignore-not-found
 
-echo "4. Deploying new Species Classifier training job..."
-sed "s|IMAGE_PLACEHOLDER|${IMAGE_NAME}|g" k8s/pollen-species-train-job.yaml | $KUBECTL apply -f - -n $NAMESPACE
+echo "2. Creating ConfigMap for training scripts..."
+$KUBECTL create configmap species-train-scripts -n $NAMESPACE --from-file=src/extract_crops.py --from-file=src/train_species.py
+
+echo "3. Deploying new Species Classifier training job..."
+$KUBECTL apply -f k8s/pollen-species-train-job.yaml -n $NAMESPACE
 
 echo "─────────────────────────────────────────────────"
 echo "✅ Job successfully submitted!"

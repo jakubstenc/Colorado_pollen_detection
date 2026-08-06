@@ -115,6 +115,8 @@ def get_mip_rgb(img, channels: list[int], grayscale: bool = False) -> np.ndarray
     
     for c in target_channels:
         mip = dask_czyx[c].max(axis=0).compute()       # (H, W) — Z collapsed
+        if len(mip.shape) == 3 and mip.shape[-1] == 3:
+            return mip if not grayscale else np.stack([cv2.cvtColor(mip, cv2.COLOR_RGB2GRAY)]*3, axis=-1)
         channels_data.append(mip)
 
     if grayscale and len(channels_data) > 0:
