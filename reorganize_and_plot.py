@@ -130,64 +130,74 @@ def process_deposition(dep_dir):
     print("Deposition plot saved.")
 
 
+def extract_prod_date(filename):
+    match = re.search(r'_([0-9]{1,2})_([0-9]{1,2})_', filename)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        return pd.to_datetime(f"2025-{month:02d}-{day:02d}")
+    return pd.NaT
+
 def process_production(prod_dir):
     print("Processing Production...")
     records = []
     
-    # Try to load Gen_alg_summary.csv which was previously used for production!
-    summary_file = Path("results/Gen_alg_summary.csv")
-    if summary_file.exists():
-        print("Using existing Gen_alg_summary.csv for production dates")
-        df_summary = pd.read_csv(summary_file)
-        if "Collection_Date" in df_summary.columns:
-            df_summary["Collection_Date"] = pd.to_datetime(df_summary["Collection_Date"])
-            df = df_summary.dropna(subset=["Collection_Date"])
-            
-            agg = df.groupby(["Collection_Date", "Species"])["Detections"].agg(["mean", "sem", "count"]).reset_index()
-            agg.rename(columns={"mean": "Average_Detections", "sem": "Standard_Error", "count": "N_Samples"}, inplace=True)
-            agg["Standard_Error"] = agg["Standard_Error"].fillna(0)
-            
-            agg.to_csv("results/pollen_production_aggregated.csv", index=False)
-            
-            plt.figure(figsize=(10, 6))
-            colors = plt.cm.get_cmap("Set2").colors
-            for i, sp in enumerate(agg["Species"].unique()):
-                sub = agg[agg["Species"] == sp].sort_values("Collection_Date")
-                plt.errorbar(sub["Collection_Date"], sub["Average_Detections"], yerr=sub["Standard_Error"], 
-                             fmt="-o", capsize=5, label=sp, color=colors[i], markersize=6)
-                             
-            plt.title("Pollen Production Over Time", fontsize=16)
-            plt.xlabel("Collection Date", fontsize=12)
-            plt.ylabel("Average Grains per Anther", fontsize=12)
-            plt.grid(True, linestyle="--", alpha=0.7)
-            plt.legend(title="Species")
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.savefig("results/pollen_production_timeline.png", dpi=300)
-            print("Production plot saved.")
-            return
-
-    # Fallback to reading the directory
     for sp_dir in prod_dir.iterdir():
         if not sp_dir.is_dir(): continue
         species = sp_dir.name
         
         for f in sp_dir.iterdir():
-            if f.name.endswith("_details.csv") and "pol_pro" in f.name:
+            if f.name.endswith("_details.csv"):
                 try:
                     df = pd.read_csv(f)
-                    if not df.empty:
-                        detections = len(df)
-                        # The filename might not have date. We just use dummy or parse from xlsx
+                    detections = len(df) if not df.empty else 0
+                    date_obj = extract_prod_date(f.name)
+                    if pd.notna(date_obj):
                         records.append({
                             "Species": species,
+                            "Collection_Date": date_obj,
                             "File": f.name,
                             "Detections": detections
                         })
                 except Exception as e:
                     pass
-    if records:
-        print("Found production files but no mapping, skipping plot.")
+                    
+    if not records:
+        print("No valid production records found.")
+        return
+        
+    df = pd.DataFrame(records)
+    df = df.dropna(subset=["Collection_Date"])
+    
+    if df.empty:
+        print("No valid dates found for production.")
+        return
+        
+    agg = df.groupby(["Collection_Date", "Species"])["Detections"].agg(["mean", "sem", "count"]).reset_index()
+    agg.rename(columns={"mean": "Average_Detections", "sem": "Standard_Error", "count": "N_Samples"}, inplace=True)
+    agg["Standard_Error"] = agg["Standard_Error"].fillna(0)
+    
+    os.makedirs("results", exist_ok=True)
+    agg.to_csv("results/pollen_production_aggregated.csv", index=False)
+    
+    plt.figure(figsize=(10, 6))
+    colors = plt.cm.get_cmap("Set2").colors
+    for i, sp in enumerate(agg["Species"].unique()):
+        sub = agg[agg["Species"] == sp].sort_values("Collection_Date")
+        plt.errorbar(sub["Collection_Date"], sub["Average_Detections"], yerr=sub["Standard_Error"], 
+                     fmt="-o", capsize=5, label=sp, color=colors[i % len(colors)], markersize=6)
+                     
+    plt.title("Pollen Production Over Time", fontsize=16)
+    plt.xlabel("Collection Date", fontsize=12)
+    plt.ylabel("Average Grains per Anther", fontsize=12)
+    plt.grid(True, linestyle="--", alpha=0.7)
+    plt.legend(title="Species")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig("results/pollen_production_timeline.png", dpi=300)
+    print("Production plot saved.")
+
+
 
 def main():
     os.makedirs("results", exist_ok=True)

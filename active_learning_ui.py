@@ -256,16 +256,16 @@ def process_action_bg(action_type, viz_path, img_path, lbl_path, base_stem, dest
     override_species = data.get("override_species", "Unknown")
     
     # Overwrite the original label in place if we are approving partial labels
-    if action_type == "approve" and keep_labels is not None and os.path.exists(lbl_path):
+    if action_type in ["approve", "artifact"] and keep_labels is not None and os.path.exists(lbl_path):
         with open(lbl_path, 'w') as f:
             f.write("\n".join(keep_labels) + ("\n" if keep_labels else ""))
 
-    if action_type in ["approve", "reject"]:
+    if action_type in ["approve", "reject", "artifact"]:
         if os.path.exists(img_path):
             shutil.copy(img_path, os.path.join(dest_img_dir, base_stem + ".jpg"))
             
             # --- CLASSIFICATION CROP EXTRACTION ---
-            if action_type == "approve" and keep_labels:
+            if action_type in ["approve", "artifact"] and keep_labels:
                 import cv2
                 import numpy as np
                 img = cv2.imread(img_path)
@@ -365,7 +365,7 @@ def process_undo_bg(last, base_stem, dest_img_dir, dest_lbl_dir):
     if os.path.exists(rev_lbl): shutil.move(rev_lbl, last["lbl_path"])
     
     # If the user hard-accepted or hard-rejected to Retrain Dataset, sever it.
-    if last["action"] in ["approve", "reject"]:
+    if last["action"] in ["approve", "reject", "artifact"]:
         dest_img = os.path.join(dest_img_dir, base_stem + ".jpg")
         if os.path.exists(dest_img): os.remove(dest_img)
         dest_lbl = os.path.join(dest_lbl_dir, base_stem + ".txt")
@@ -380,33 +380,36 @@ def prepare_roboflow():
     import cv2
     import numpy as np
     
-    out_dir = os.path.expanduser("~/cesnet_cloud/bucket/PEG/Colorado/Roboflow_Export")
+    out_dir = os.path.expanduser("~/cesnet_data/PEG/Colorado/Roboflow_Export")
     out_img = os.path.join(out_dir, "images")
     out_lbl = os.path.join(out_dir, "labels")
     
     os.makedirs(out_img, exist_ok=True)
     os.makedirs(out_lbl, exist_ok=True)
     
-    lbl_files = glob.glob(os.path.join(STAGED_AREA_DIR, "*", "Discarded", "Labels", "*.txt"))
+    img_files = glob.glob(os.path.join(STAGED_AREA_DIR, "*", "Discarded", "Images", "*.jpg"))
     
     exported = 0
-    for lbl_f in lbl_files:
-        base = os.path.basename(lbl_f)
-        # The image path is parallel to the label path
-        img_f = lbl_f.replace("/Labels/", "/Images/").replace(".txt", ".jpg")
-        if not os.path.exists(img_f):
-            continue
-            
-        with open(lbl_f, 'r') as f:
-            lines = f.readlines()
-            
-        if not lines:
-            continue
-            
-        out_lbl_f = os.path.join(out_lbl, base)
-        out_img_f = os.path.join(out_img, base.replace(".txt", ".jpg"))
+    for img_f in img_files:
+        base = os.path.basename(img_f)
+        lbl_f = img_f.replace("/Images/", "/Labels/").replace(".jpg", ".txt")
+        
+        out_img_f = os.path.join(out_img, base)
+        out_lbl_f = os.path.join(out_lbl, base.replace(".jpg", ".txt"))
         
         shutil.copy(img_f, out_img_f)
+        
+        if os.path.exists(lbl_f):
+            with open(lbl_f, 'r') as f:
+                lines = f.readlines()
+        else:
+            lines = []
+            
+        if not lines:
+            # Create an empty txt file for Roboflow
+            open(out_lbl_f, 'w').close()
+            exported += 1
+            continue
             
         img = cv2.imread(img_f)
         if img is None: continue
@@ -593,9 +596,12 @@ HTML_TEMPLATE = """
         
         .controls { margin-top: 15px; display: flex; justify-content: center; gap: 15px; }
         button { padding: 14px 20px; font-size: 15px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: 600; white-space:nowrap; transition: all 0.2s;}
-        .btn-approve { background: #22a042; box-shadow: 0 4px #126325;}
-        .btn-reject { background: #d63346; box-shadow: 0 4px #8b1c28;}
-        .btn-skip { background: #5a6268; box-shadow: 0 4px #363b3e;}
+        .btn-approve { background: #22a042; color: white; flex:1; box-shadow: 0 4px #18712f; }
+        .btn-artifact { background: #8e44ad; color: white; flex:1; box-shadow: 0 4px #6c3483; }
+        .btn-reject { background: #d63346; color: white; flex:1; box-shadow: 0 4px #9e2331; }
+        .btn-skip { background: #5a6268; color: white; flex:1; box-shadow: 0 4px #3d4246; }
+        
+        .btn-approve:active, .btn-artifact:active, .btn-reject:active, .btn-skip:active { transform: translateY(4px); box-shadow: 0 0px; }
         
         .btn-nav { background: #2b78e4; padding: 10px 15px; font-size:14px; box-shadow: 0 3px #18488e; width: 48%; }
         .nav-container { display:flex; justify-content:space-between; margin-top: 15px; width: 100%; max-width: 600px;}
@@ -728,6 +734,7 @@ HTML_TEMPLATE = """
         
         <div class="controls" style="margin-top:25px;">
             <button class="btn-approve" onclick="sendAction('approve')">Valid Pollen <span class="shortcut">Right Arrow</span></button>
+            <button class="btn-artifact" onclick="sendAction('artifact')">Artifact <span class="shortcut">A</span></button>
             <button class="btn-reject" onclick="sendAction('reject')">Reject Background <span class="shortcut">Down Arrow</span></button>
             <button class="btn-skip" onclick="sendAction('skip')">Delete from UI Queue<span class="shortcut">Spacebar</span></button>
         </div>
@@ -739,7 +746,7 @@ HTML_TEMPLATE = """
             <div style="color:#888; font-size:13px; text-align:center; margin-top:20px;">No recent decisions.</div>
         {% else %}
             {% for item in undo_stack|reverse %}
-            <div class="panel-section" style="border-left: 4px solid {% if item.action == 'approve' %}#22a042{% elif item.action == 'reject' %}#d63346{% else %}#5a6268{% endif %}; padding: 10px; margin-bottom: 10px;">
+            <div class="panel-section" style="border-left: 4px solid {% if item.action == 'approve' %}#22a042{% elif item.action == 'reject' %}#d63346{% elif item.action == 'artifact' %}#8e44ad{% else %}#5a6268{% endif %}; padding: 10px; margin-bottom: 10px;">
                 <div style="font-size:11px; color:#aaa; margin-bottom: 3px; font-weight:bold; text-transform:uppercase;">{{ item.action }}</div>
                 <div style="font-size:12px; color:#ddd; word-break: break-all; margin-bottom: 5px;" title="{{ item.base_stem }}">{{ item.base_stem }}</div>
                 <img src="/image?path={{ item.viz_path }}" style="width:100%; height:auto; border-radius:4px; margin-bottom:8px; border:1px solid #444;">
@@ -883,7 +890,10 @@ HTML_TEMPLATE = """
             isProcessing = true;
             document.getElementById("main-image").style.opacity = "0.3";
             const keepLabels = labelsData.filter((_, idx) => activeLabels[idx]).map(l => l.raw);
-            const overrideSpecies = document.getElementById("override-species").value || "{{species_name}}";
+            let overrideSpecies = document.getElementById("override-species").value || "{{species_name}}";
+            if (action === "artifact") {
+                overrideSpecies = "Artifact";
+            }
             fetch("/action", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
@@ -904,6 +914,7 @@ HTML_TEMPLATE = """
 
         document.addEventListener("keydown", function(e) {
             if (e.key === "ArrowRight") { e.preventDefault(); sendAction('approve'); }
+            if (e.key.toLowerCase() === "a") { e.preventDefault(); sendAction('artifact'); }
             if (e.key === "ArrowDown") { e.preventDefault(); sendAction('reject'); }
             if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); sendAction('skip'); }
             if (e.key === "ArrowLeft") { e.preventDefault(); navigate(-1); }

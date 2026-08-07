@@ -78,17 +78,27 @@ def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px
         
         # Physical size filter
         area_um2 = None
+        area_px = cv2.contourArea(pts.reshape(-1, 1, 2).astype(np.float32))
+        perimeter_px = float(cv2.arcLength(pts.reshape(-1, 1, 2).astype(np.float32), True))
+        
+        # Option 1: Circularity (Reject highly elongated fibers or irregular stain edges)
+        circularity = 0.0
+        if perimeter_px > 0:
+            circularity = 4 * np.pi * (area_px / (perimeter_px ** 2))
+        
+        if circularity < 0.35:  # Very loose, only rejects extreme spikes/lines
+            continue
+            
         if scale_um_px is not None:
-            area_px = cv2.contourArea(pts.reshape(-1, 1, 2).astype(np.float32))
             area_um2 = area_px * (scale_um_px ** 2)
-            if not (czi_ingest.MIN_POLLEN_AREA_UM2 < area_um2 < czi_ingest.MAX_POLLEN_AREA_UM2):
+            # Extremely loose bounds to ensure we don't accidentally drop real pollen
+            if area_um2 < 20.0 or area_um2 > 15000.0: 
                 continue
                 
         # Calculate extended shape geometry
         M = cv2.moments(pts.reshape(-1, 1, 2).astype(np.float32))
         cx_tile = int(M['m10']/M['m00']) if M['m00'] != 0 else int(x + w/2)
         cy_tile = int(M['m01']/M['m00']) if M['m00'] != 0 else int(y + h/2)
-        perimeter_px = float(cv2.arcLength(pts.reshape(-1, 1, 2).astype(np.float32), True))
                 
         # Stage 2: Crop and Classify
         pad = 0.1
@@ -103,6 +113,13 @@ def pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px
         crop = tile_bgr[y1:y2, x1:x2]
         
         if crop.shape[0] < 10 or crop.shape[1] < 10:
+            continue
+            
+        # Option 2: Color/Intensity Heuristic (Reject very dark stains or transparent/gray fibers)
+        hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        mean_s = np.mean(hsv_crop[:, :, 1])
+        mean_v = np.mean(hsv_crop[:, :, 2])
+        if mean_v < 30 or mean_s < 15:  # Too black or too gray
             continue
             
         if model_cls is not None:
@@ -146,6 +163,7 @@ def main():
     parser.add_argument("--manifest", default="/home/meow/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv")
     parser.add_argument("--force-species", default=None, help="Force all inferences explicitly into this exact output bucket bucket")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of images to process")
+    parser.add_argument("--skip-existing", action="store_true", help="Check S3 and skip files that already have results")
     args = parser.parse_args()
     
     registry = load_species_manifest(args.manifest) if args.model_cls else {}
@@ -170,6 +188,24 @@ def main():
     
     for czi_path in all_czis:
         print(f"\n🔬 Processing: {czi_path.name}")
+        
+        if args.skip_existing:
+            import boto3
+            from botocore.config import Config
+            import urllib3
+            urllib3.disable_warnings()
+            s3_bucket = os.environ.get('S3_BUCKET', 'bucket')
+            s3_endpoint = os.environ.get('S3_ENDPOINT', 'https://s3.cl4.du.cesnet.cz')
+            s3_client = boto3.client('s3', endpoint_url=s3_endpoint, aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID', '1Y920BKC0SAWPNDE8RD6'), aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY', 'SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD'), verify=False, config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}))
+            
+            s3_prefix = f"PEG/Colorado/Detected/{args.force_species if args.force_species else 'Pollen'}"
+            expected_overview = f"{s3_prefix}/overview_{czi_path.stem}_labeled.jpg"
+            try:
+                s3_client.head_object(Bucket=s3_bucket, Key=expected_overview)
+                print(f"   ⏩ Skipping {czi_path.name} - already processed (found {expected_overview} on S3).")
+                continue
+            except Exception:
+                pass # Doesn't exist, proceed
         
         try:
             rel_path = czi_path.parent.relative_to(Path(args.root))

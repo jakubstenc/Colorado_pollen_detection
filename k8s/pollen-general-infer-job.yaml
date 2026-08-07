@@ -78,7 +78,8 @@ spec:
                 --root /mnt/czi_data/target \
                 --out /mnt/czi_data/Inference_Results \
                 --model-seg /mnt/model/general.pt \
-                --force-species "${TARGET_SPECIES}"
+                --force-species "${TARGET_SPECIES}" \
+                --skip-existing
                 
               echo "Uploads strictly confirmed by native Python Boto3 tracker!"
           securityContext:

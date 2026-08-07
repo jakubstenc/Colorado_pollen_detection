@@ -60,6 +60,61 @@ def nms_numpy(boxes, scores, iou_threshold=0.3):
         order = order[inds + 1]
     return keep
 
+def safe_read_czi_rgb(filepath):
+    import aicspylibczi
+    from build_species_dataset import normalize_to_uint8
+
+    czi = aicspylibczi.CziFile(filepath)
+    dims = czi.dims
+    
+    kwargs = {}
+    if 'Z' in dims: kwargs['Z'] = 0
+    if 'T' in dims: kwargs['T'] = 0
+    if 'C' in dims: kwargs['C'] = 0
+    
+    if czi.is_mosaic():
+        data = czi.read_mosaic(**kwargs)
+    else:
+        data, _ = czi.read_image(**kwargs)
+        
+    data = np.squeeze(data)
+    
+    if len(data.shape) == 2:
+        rgb = np.stack([data, data, data], axis=-1)
+    elif len(data.shape) == 3:
+        c_axis = np.argmin(data.shape)
+        if c_axis == 0:
+            rgb = np.transpose(data, (1, 2, 0))
+        elif c_axis == 2:
+            rgb = data
+        else:
+            raise ValueError(f"Unexpected channel axis in shape {data.shape}")
+            
+        if rgb.shape[-1] >= 3:
+            rgb = rgb[..., :3]
+        elif rgb.shape[-1] == 1:
+            rgb = np.stack([rgb[..., 0]] * 3, axis=-1)
+        elif rgb.shape[-1] == 2:
+            rgb = np.stack([rgb[..., 0], rgb[..., 1], np.zeros_like(rgb[..., 0])], axis=-1)
+    else:
+        raise ValueError(f"Unexpected squeezed data shape: {data.shape}")
+            
+    return normalize_to_uint8(rgb)
+
+def get_pixel_size_from_czi(filepath):
+    import aicspylibczi
+    try:
+        czi = aicspylibczi.CziFile(filepath)
+        root = czi.meta
+        for distance in root.findall(".//Distance"):
+            if distance.attrib.get("Id") == "X":
+                value_elem = distance.find("Value")
+                if value_elem is not None:
+                    return float(value_elem.text) * 1e6
+    except Exception:
+        pass
+    return 1.0
+
 def main():
     s3 = get_s3_client()
     
@@ -134,14 +189,8 @@ def main():
         s3.download_file(s3_bucket, target_key, str(local_czi))
         
         try:
-            img = AICSImage(str(local_czi))
-            
-            # Extract RGB with consistent contrast stretching
-            rgb = get_mip_rgb(img)
-            
-            px_size = getattr(img.physical_pixel_sizes, 'X', 1.0) # Default to 1.0 if None
-            if px_size is None:
-                px_size = 1.0
+            rgb = safe_read_czi_rgb(str(local_czi))
+            px_size = get_pixel_size_from_czi(str(local_czi))
                 
             print(f"Physical Pixel Size: {px_size} um/pixel")
             

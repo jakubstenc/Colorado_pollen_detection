@@ -25,7 +25,7 @@ def process_deposition_boto3():
     s3_bucket = "bucket"
     aws_access_key_id = "1Y920BKC0SAWPNDE8RD6"
     aws_secret_access_key = "SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD"
-
+    
     s3 = boto3.client(
         "s3",
         endpoint_url=s3_endpoint,
@@ -111,7 +111,7 @@ def process_deposition_boto3():
         # Plot Conspecific
         plt.errorbar(sub["Collection_Date"], sub["Conspecific_Avg"], yerr=sub["Conspecific_SE"], 
                      fmt="-o", capsize=5, label=f"{sp} (Conspecific)", color=colors[i], markersize=6)
-        
+                     
         # Plot Heterospecific
         plt.errorbar(sub["Collection_Date"], sub["Heterospecific_Avg"], yerr=sub["Heterospecific_SE"], 
                      fmt="--s", capsize=5, label=f"{sp} (Heterospecific)", color=colors[(i + 1) % len(colors)], markersize=6)
@@ -126,43 +126,105 @@ def process_deposition_boto3():
     plt.savefig("results/pollen_deposition_timeline.png", dpi=300)
     print("Deposition plot saved.")
 
-def process_production():
-    print("Processing Production...")
+def extract_prod_date(filename):
+    match = re.search(r'_([0-9]{1,2})_([0-9]{1,2})_', filename)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        return pd.to_datetime(f"2025-{month:02d}-{day:02d}")
+    return pd.NaT
+
+def process_production_boto3():
+    print("Fetching Production via boto3...")
     
-    summary_file = Path("results/Gen_alg_summary.csv")
-    if summary_file.exists():
-        df_summary = pd.read_csv(summary_file)
-        if "Collection_Date" in df_summary.columns:
-            df_summary["Collection_Date"] = pd.to_datetime(df_summary["Collection_Date"])
-            df = df_summary.dropna(subset=["Collection_Date"])
-            
-            agg = df.groupby(["Collection_Date", "Species"])["Detections"].agg(["mean", "sem", "count"]).reset_index()
-            agg.rename(columns={"mean": "Average_Detections", "sem": "Standard_Error", "count": "N_Samples"}, inplace=True)
-            agg["Standard_Error"] = agg["Standard_Error"].fillna(0)
-            
-            os.makedirs("results", exist_ok=True)
-            agg.to_csv("results/pollen_production_aggregated.csv", index=False)
-            
-            plt.figure(figsize=(10, 6))
-            colors = plt.cm.get_cmap("Set2").colors
-            for i, sp in enumerate(agg["Species"].unique()):
-                sub = agg[agg["Species"] == sp].sort_values("Collection_Date")
-                plt.errorbar(sub["Collection_Date"], sub["Average_Detections"], yerr=sub["Standard_Error"], 
-                             fmt="-o", capsize=5, label=sp, color=colors[i], markersize=6)
-                             
-            plt.title("Pollen Production Over Time", fontsize=16)
-            plt.xlabel("Collection Date", fontsize=12)
-            plt.ylabel("Average Grains per Anther", fontsize=12)
-            plt.grid(True, linestyle="--", alpha=0.7)
-            plt.legend(title="Species")
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.savefig("results/pollen_production_timeline.png", dpi=300)
-            print("Production plot saved.")
+    s3_endpoint = "https://s3.cl4.du.cesnet.cz"
+    s3_bucket = "bucket"
+    aws_access_key_id = "1Y920BKC0SAWPNDE8RD6"
+    aws_secret_access_key = "SnKMQbJ8mRKVboPDymkYFaFTz7VBxysrsWwJRoMD"
+    
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=s3_endpoint,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        config=Config(signature_version="s3v4", s3={"payload_signing_enabled": False}),
+        verify=False
+    )
+    
+    paginator = s3.get_paginator('list_objects_v2')
+    species_list = ["Ran_ado", "Cal_chi", "Gen_alg", "Sed_lan", "Vio_adu"]
+    
+    records = []
+    
+    for sp in species_list:
+        keys_to_try = [
+            f"PEG/Colorado/Detected/Pollen_production/{sp}/",
+            f"PEG/Colorado/Detected/{sp}/"
+        ]
+        
+        for prefix in keys_to_try:
+            for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    filename = os.path.basename(key)
+                    
+                    if key.endswith("_details.csv"):
+                        try:
+                            response = s3.get_object(Bucket=s3_bucket, Key=key)
+                            df = pd.read_csv(io.BytesIO(response['Body'].read()))
+                            detections = len(df) if not df.empty else 0
+                            
+                            date_obj = extract_prod_date(filename)
+                            if pd.notna(date_obj):
+                                records.append({
+                                    "Species": sp,
+                                    "Collection_Date": date_obj,
+                                    "File": filename,
+                                    "Detections": detections
+                                })
+                        except Exception as e:
+                            print(f"Failed to process {key}: {e}")
+
+    if not records:
+        print("No production records found on S3.")
+        return
+        
+    df = pd.DataFrame(records)
+    df = df.dropna(subset=["Collection_Date"])
+    
+    if df.empty:
+        print("No valid dates found for production.")
+        return
+        
+    agg = df.groupby(["Collection_Date", "Species"])["Detections"].agg(["mean", "sem", "count"]).reset_index()
+    agg.rename(columns={"mean": "Average_Detections", "sem": "Standard_Error", "count": "N_Samples"}, inplace=True)
+    agg["Standard_Error"] = agg["Standard_Error"].fillna(0)
+    
+    os.makedirs("results", exist_ok=True)
+    agg.to_csv("results/pollen_production_aggregated.csv", index=False)
+    
+    plt.figure(figsize=(10, 6))
+    # 'Set2' colormap has 8 colors, which is perfect for up to 8 species
+    # For matplotlib > 3.7, we can use plt.colormaps['Set2'] instead of get_cmap
+    colors = plt.cm.get_cmap("Set2").colors
+    for i, sp in enumerate(agg["Species"].unique()):
+        sub = agg[agg["Species"] == sp].sort_values("Collection_Date")
+        plt.errorbar(sub["Collection_Date"], sub["Average_Detections"], yerr=sub["Standard_Error"], 
+                     fmt="-o", capsize=5, label=sp, color=colors[i % len(colors)], markersize=6)
+                     
+    plt.title("Pollen Production Over Time", fontsize=16)
+    plt.xlabel("Collection Date", fontsize=12)
+    plt.ylabel("Average Grains per Anther", fontsize=12)
+    plt.grid(True, linestyle="--", alpha=0.7)
+    plt.legend(title="Species")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig("results/pollen_production_timeline.png", dpi=300)
+    print("Production plot saved.")
 
 def main():
     process_deposition_boto3()
-    process_production()
+    process_production_boto3()
 
 if __name__ == "__main__":
     main()
