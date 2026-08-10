@@ -81,6 +81,8 @@ def mark_as_reviewed(viz_path, action_type):
         target_folder_name = "Discarded"
     elif action_type == "reject":
         target_folder_name = "Negatives"
+    elif action_type == "artifact":
+        target_folder_name = "Artifacts"
     else:
         target_folder_name = "Reviewed"
         
@@ -351,6 +353,8 @@ def process_undo_bg(last, base_stem, dest_img_dir, dest_lbl_dir):
         rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Discarded")
     elif last["action"] == "reject":
         rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Negatives")
+    elif last["action"] == "artifact":
+        rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Artifacts")
     else:
         rev_dir = os.path.join(STAGED_AREA_DIR, species_name, "Reviewed")
     
@@ -388,6 +392,7 @@ def prepare_roboflow():
     os.makedirs(out_lbl, exist_ok=True)
     
     img_files = glob.glob(os.path.join(STAGED_AREA_DIR, "*", "Discarded", "Images", "*.jpg"))
+    img_files += glob.glob(os.path.join(STAGED_AREA_DIR, "*", "Artifacts", "Images", "*.jpg"))
     
     exported = 0
     for img_f in img_files:

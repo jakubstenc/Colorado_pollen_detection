@@ -164,6 +164,7 @@ def main():
     parser.add_argument("--force-species", default=None, help="Force all inferences explicitly into this exact output bucket bucket")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of images to process")
     parser.add_argument("--skip-existing", action="store_true", help="Check S3 and skip files that already have results")
+    parser.add_argument("--conf", type=float, default=0.65, help="Confidence threshold for Stage 1 detection")
     args = parser.parse_args()
     
     registry = load_species_manifest(args.manifest) if args.model_cls else {}
@@ -249,7 +250,7 @@ def main():
             tile_bgr = cv2.cvtColor(tile_rgb, cv2.COLOR_RGB2BGR)
             stem = f"{czi_path.stem}_x{tx:06d}_y{ty:06d}"
             
-            detections = pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px)
+            detections = pseudo_label_two_stage(tile_bgr, model_seg, model_cls, registry, scale_um_px, conf=args.conf)
             
             # Explicitly force-bind the categorization if parsing dynamically using general model overrides
             if args.force_species:

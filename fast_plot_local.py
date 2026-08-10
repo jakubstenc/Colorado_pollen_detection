@@ -142,6 +142,7 @@ def process_production():
         plt.title("Pollen Production Over Time", fontsize=16)
         plt.xlabel("Collection Date", fontsize=12)
         plt.ylabel("Average Grains per Anther", fontsize=12)
+        plt.yscale("log")
         plt.grid(True, linestyle="--", alpha=0.7)
         plt.legend(title="Species")
         plt.xticks(rotation=45)

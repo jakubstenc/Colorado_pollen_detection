@@ -38,8 +38,7 @@ def process_deposition_boto3():
     records = []
     paginator = s3.get_paginator('list_objects_v2')
     
-    # We only care about summary CSVs
-    for page in paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Detected/"):
+    for page in paginator.paginate(Bucket=s3_bucket, Prefix="PEG/Colorado/Detected/Pollen_deposition/"):
         for obj in page.get("Contents", []):
             key = obj["Key"]
             filename = os.path.basename(key)
@@ -215,6 +214,7 @@ def process_production_boto3():
     plt.title("Pollen Production Over Time", fontsize=16)
     plt.xlabel("Collection Date", fontsize=12)
     plt.ylabel("Average Grains per Anther", fontsize=12)
+    plt.yscale("log")
     plt.grid(True, linestyle="--", alpha=0.7)
     plt.legend(title="Species")
     plt.xticks(rotation=45)

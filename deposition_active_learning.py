@@ -12,7 +12,7 @@ from build_species_dataset import tile_image, extract_general_pollen, get_mip_rg
 from focus_check import compute_focus_score
 
 out_dir = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Species_model/Trainig_data")
-model_path = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt"
+model_path = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/best.pt"
 src_root = Path("/home/meow/cesnet_data/PEG/Colorado/Source/Pollen_deposition")
 conf_thresh = 0.65
 class_id = 0 # Using 0 since these are for the general pollen model
@@ -43,9 +43,7 @@ t_negs = 0
 
 print(f"\n🌸 Processing {species}")
 for czi_path in all_czis:
-    if success_count >= 10:
-        break
-        
+    # Process all files without limit
     print(f"📥 Loading {czi_path.name}")
     try:
         img = AICSImage(str(czi_path))

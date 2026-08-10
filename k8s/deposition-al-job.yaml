@@ -8,6 +8,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -17,29 +19,31 @@ spec:
             capabilities:
               drop:
                 - ALL
-          image: IMAGE_PLACEHOLDER
-          imagePullPolicy: Always
+          image: ultralytics/ultralytics:latest
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -c
             - |
               set -e
+              export HOME=/tmp
+              export PATH=$PATH:$HOME/.local/bin
+              echo "Bypassing ttl.sh outage: installing dependencies at runtime..."
+              pip install --user --no-cache-dir awscli aicsimageio dask imagecodecs boto3 aicspylibczi
               echo "Preparing container paths..."
-              mkdir -p /app/Trainig_data
+              mkdir -p /tmp/app/Trainig_data
+              cd /tmp
               
               echo "Finding latest YOLO general pollen model..."
               LATEST_FOLDER=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl | grep "PRE general_pollen_" | grep -v "eval" | awk '{print $2}' | sort | tail -n 1)
               echo "Downloading from: s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt"
-              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /app/best.pt --no-verify-ssl
+              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /tmp/app/best.pt --no-verify-ssl
               
               echo "Running Deposition Active Learning Extractor..."
               python3 /app_scripts/k8s_deposition_al.py
               
               echo "Syncing generated data to S3..."
-              aws --endpoint-url "$S3_ENDPOINT" s3 sync /app/Trainig_data/ "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" --no-verify-ssl
-              
-              echo "Sending completion email notification..."
-              python3 /app/src/notify.py --type detection --job_name "Pollen Deposition Active Learning Extractor"
+              aws --endpoint-url "$S3_ENDPOINT" s3 sync /tmp/app/Trainig_data/ "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/" --no-verify-ssl
           resources:
             limits:
               nvidia.com/gpu: 1

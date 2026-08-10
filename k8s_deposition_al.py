@@ -9,11 +9,7 @@ import random
 import boto3
 from botocore.config import Config
 
-sys.path.append("/scripts") # This will be mounted in K8s
-sys.path.append("/app/src") # Ensure src is accessible if needed, but actually let's just copy focus_check and build_species_dataset into the container?
-# Wait! In extract-negatives-job, the docker image has /app/src containing the python files because it's built from Dockerfile.train which does `COPY . /app`!
-# So we can just append /app/src
-sys.path.append("/app/src")
+sys.path.append("/app_scripts")
 
 from build_species_dataset import tile_image, extract_general_pollen, get_mip_rgb, AICSImage
 from focus_check import compute_focus_score
@@ -34,8 +30,8 @@ def get_s3_client():
     )
 
 def main():
-    out_dir = Path("/app/Trainig_data") # We will sync this directory to S3
-    model_path = "/app/best.pt" # Downloaded by init script or just before python runs
+    out_dir = Path("/tmp/app/Trainig_data") # We will sync this directory to S3
+    model_path = "/tmp/app/best.pt" # Downloaded by init script or just before python runs
     s3_bucket = os.environ.get("S3_BUCKET", "bucket")
     source_prefix = "PEG/Colorado/Source/Pollen_deposition/"
     conf_thresh = 0.65
@@ -77,9 +73,7 @@ def main():
 
     print(f"\n🌸 Processing {species}")
     for s3_key in all_czis:
-        if success_count >= 10:
-            break
-            
+        # Process all files without limit
         filename = s3_key.split('/')[-1]
         local_path = Path(f"/tmp/{filename}")
         
