@@ -245,7 +245,23 @@ def main():
         czi_paths = list(LOCAL_SRC.rglob("*.czi"))
         print(f"🔍 Found {len(czi_paths)} CZI(s) in local mount: {LOCAL_SRC}")
     else:
-        print("🌐 Local mount unavailable — fetching list from S3…")
+        # Check if we are running inside a k8s container (no HOME-based CESNET mount).
+        # Downloading CZIs locally is intentionally blocked to avoid filling the user's disk.
+        # Run via k8s instead: ./deploy_extract_spores.sh
+        in_k8s = os.path.exists("/var/run/secrets/kubernetes.io") or os.environ.get("KUBERNETES_SERVICE_HOST")
+        if not in_k8s:
+            print("❌  Local CESNET mount not found at:", LOCAL_SRC)
+            print()
+            print("   CZI files are too large to download to a local machine.")
+            print("   Run this as a Kubernetes job instead:")
+            print()
+            print("     ./deploy_extract_spores.sh")
+            print()
+            print("   The job runs on the cluster with plenty of disk, downloads")
+            print("   the CZIs there, processes them, and uploads tiles to S3.")
+            sys.exit(1)
+
+        print("🌐 Running in k8s — fetching CZI list from S3…")
         s3 = get_s3_client()
         czi_keys  = list_spore_czis(s3, S3_BUCKET, SOURCE_PREFIX)
         print(f"🔍 Found {len(czi_keys)} CZI(s) at S3:{SOURCE_PREFIX}")

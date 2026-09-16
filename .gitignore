@@ -31,3 +31,8 @@ kubectl
 !k8s/**/*.yaml
 
 results/Gen_alg/master_results_summary.csv
+
+# Large files that must never be committed
+test.czi
+*.czi
+results/Pollen_production/**/*.csv
