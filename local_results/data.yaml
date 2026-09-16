@@ -1,6 +1,0 @@
-path: /home/meow/Documents/Antigravity/Colorado_pollen_detection/local_results
-train: train/images
-val:   val/images
-nc: 1
-names:
-  0: Ran_ado

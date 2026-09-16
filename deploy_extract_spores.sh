@@ -27,10 +27,11 @@ fi
 
 [ -f "./kubeconfig.yaml" ] && export KUBECONFIG="$(pwd)/kubeconfig.yaml"
 
-echo "3. Creating/Updating configmap with both extract_spores.py and build_species_dataset.py..."
+echo "3. Creating/Updating configmap with extract_spores.py, build_species_dataset.py and notify.py..."
 $KUBECTL create configmap extract-spores-script \
     --from-file=extract_spores.py \
     --from-file=build_species_dataset.py=src/build_species_dataset.py \
+    --from-file=notify.py=src/notify.py \
     -n $NAMESPACE --dry-run=client -o yaml | $KUBECTL apply -f -
 
 echo "4. Cleaning up old extract-spores job if present..."

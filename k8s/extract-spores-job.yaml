@@ -44,6 +44,9 @@ spec:
 
               echo "Syncing spore tiles to S3..."
               aws --endpoint-url "$S3_ENDPOINT" s3 sync /tmp/spore_extract/output/Lyc_spo/ "s3://$S3_BUCKET/PEG/Colorado/Species_model/Trainig_data/Lyc_spo/" --no-verify-ssl
+
+              echo "Sending completion notification..."
+              python3 /scripts/notify.py --type detection --job_name "Lycopodium Spore Extraction"
           resources:
             limits:
               nvidia.com/gpu: 1
@@ -68,6 +71,11 @@ spec:
                 secretKeyRef:
                   name: s3-credentials
                   key: secret-key
+            - name: GMAIL_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: email-credentials
+                  key: GMAIL_APP_PASSWORD
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
