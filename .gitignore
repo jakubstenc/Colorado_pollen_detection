@@ -36,3 +36,38 @@ results/Gen_alg/master_results_summary.csv
 test.czi
 *.czi
 results/Pollen_production/**/*.csv
+
+# Results data — stored on S3 (Detected/), not in git
+results/Pollen_production/
+results/Gen_alg/
+
+# Generated reports and visualisations
+results_gen_alg.html
+mip_raw.jpg
+mip_swapped.jpg
+overview_general_only.jpg
+patch_*.jpg
+index.html.1
+_site/
+diagnostic_plots/
+
+# Temporary / local artefacts
+sample_tiles/
+local_test_output/
+local_results/
+pollen_data_for_collaborator.zip
+s3_keys.txt
+k8s_logs.txt
+pip_*.log
+pip_numpy.log pip_download.log pip_core.log pip_clean.log
+training.log
+ui.log
+__pycache__/
+
+# Datasets (regenerated from S3)
+dataset_ran_ado/
+dataset_general_v1/
+dataset_general_v2/
+
+# Lock files
+results/.~lock.*
