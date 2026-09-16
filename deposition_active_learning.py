@@ -18,6 +18,9 @@ conf_thresh = 0.65
 class_id = 0 # Using 0 since these are for the general pollen model
 species = "Deposition_Stigmas"
 
+# Lycopodium spores (class 46) are focus-aid particles — never count as pollen.
+LYC_SPO_CLASS_ID = 46
+
 print("🤖 Loading YOLO model...")
 model = YOLO(model_path)
 
@@ -78,6 +81,10 @@ for czi_path in all_czis:
                 lbl_lines = []
                 H, W = tile_bgr.shape[:2]
                 for d in detections:
+                    # Skip Lycopodium spore detections (class 46)
+                    if d.get('cls', 0) == LYC_SPO_CLASS_ID:
+                        continue
+
                     poly_px = d['poly_px'].reshape((-1, 1, 2))
                     mask = np.zeros((H, W), dtype=np.uint8)
                     cv2.fillPoly(mask, [poly_px], 255)

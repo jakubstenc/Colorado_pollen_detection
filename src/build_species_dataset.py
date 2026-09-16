@@ -164,7 +164,8 @@ def extract_general_pollen(tile, model, conf_thresh):
         detections.append({
             'poly_norm': norm,
             'poly_px': mask_xy.copy().astype(np.int32),
-            'conf': c_conf
+            'conf': c_conf,
+            'cls': int(box.cls[0]),  # raw model class id; used for Lyc_spo filtering
         })
         
     return detections

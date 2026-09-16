@@ -17,6 +17,9 @@ src_root = Path("/home/meow/cesnet_cloud/bucket/PEG/Colorado/Source")
 manifest_path = "/home/meow/Documents/Antigravity/Colorado_pollen_detection/src/species_manifest.csv"
 conf_thresh = 0.65
 
+# Lycopodium spores (class 46) are focus-aid particles — never count as pollen.
+LYC_SPO_CLASS_ID = 46
+
 print("🤖 Loading YOLO model...")
 model = YOLO(model_path)
 
@@ -98,61 +101,73 @@ for species, keys_for_species in sorted(czi_by_species.items()):
                     n_negs += 1
                     stats[species]["negatives"] += 1
                 else:
-                    n_hits += 1
-                    stats[species]["images"] += 1
-                    stats[species]["annotations"] += len(detections)
-                    
-                    tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(str(spec_img_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
-                    
-                    lbl_lines = []
-                    H, W = tile_bgr.shape[:2]
-                    for d in detections:
-                        poly_px = d['poly_px'].reshape((-1, 1, 2))
-                        mask = np.zeros((H, W), dtype=np.uint8)
-                        cv2.fillPoly(mask, [poly_px], 255)
+                    # Filter out spore detections before deciding if tile is a positive
+                    pollen_dets = [d for d in detections if d.get('cls', 0) != LYC_SPO_CLASS_ID]
+                    if len(pollen_dets) == 0:
+                        # Only spores on this tile → treat as negative
+                        tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+                        cv2.imwrite(str(neg_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                        n_negs += 1
+                        stats[species]["negatives"] += 1
+                    else:
+                        # Real pollen detections remain
+                        detections = pollen_dets
+                        n_hits += 1
+                        stats[species]["images"] += 1
+                        stats[species]["annotations"] += len(detections)
                         
-                        hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
-                        S = hsv[:,:,1]
-                        S_blurred = cv2.GaussianBlur(S, (5, 5), 0)
-                        _, binary = cv2.threshold(S_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-                        binary = cv2.bitwise_and(binary, binary, mask=mask)
-                        kernel = np.ones((5,5), np.uint8)
-                        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-                        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        tile_bgr = cv2.cvtColor(tile, cv2.COLOR_RGB2BGR)
+                        cv2.imwrite(str(spec_img_dir / f"{stem}.jpg"), tile_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
                         
-                        if contours:
-                            largest_contour = max(contours, key=cv2.contourArea)
-                            epsilon = 0.003 * cv2.arcLength(largest_contour, True)
-                            smoothed_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
-                            final_poly_px = smoothed_contour.reshape(-1, 2)
-                        else:
-                            final_poly_px = d['poly_px']
+                        lbl_lines = []
+                        H, W = tile_bgr.shape[:2]
+                        for d in detections:
+                            poly_px = d['poly_px'].reshape((-1, 1, 2))
+                            mask = np.zeros((H, W), dtype=np.uint8)
+                            cv2.fillPoly(mask, [poly_px], 255)
                             
-                        # Save snapped polygon to ground-truth label
-                        norm_xy = final_poly_px.astype(float)
-                        norm_xy[:, 0] /= W
-                        norm_xy[:, 1] /= H
+                            hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+                            S = hsv[:,:,1]
+                            S_blurred = cv2.GaussianBlur(S, (5, 5), 0)
+                            _, binary = cv2.threshold(S_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                            binary = cv2.bitwise_and(binary, binary, mask=mask)
+                            kernel = np.ones((5,5), np.uint8)
+                            binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+                            contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            
+                            if contours:
+                                largest_contour = max(contours, key=cv2.contourArea)
+                                epsilon = 0.003 * cv2.arcLength(largest_contour, True)
+                                smoothed_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
+                                final_poly_px = smoothed_contour.reshape(-1, 2)
+                            else:
+                                final_poly_px = d['poly_px']
+                                
+                            # Save snapped polygon to ground-truth label
+                            norm_xy = final_poly_px.astype(float)
+                            norm_xy[:, 0] /= W
+                            norm_xy[:, 1] /= H
+                            
+                            coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in norm_xy)
+                            lbl_lines.append(f"{class_id} {coords}")
+                            
+                            # Store snapped variant strictly back for viz rendering
+                            d['poly_px'] = final_poly_px
+                            
+                        (spec_lbl_dir / f"{stem}.txt").write_text("\n".join(lbl_lines))
                         
-                        coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in norm_xy)
-                        lbl_lines.append(f"{class_id} {coords}")
-                        
-                        # Store snapped variant strictly back for viz rendering
-                        d['poly_px'] = final_poly_px
-                        
-                    (spec_lbl_dir / f"{stem}.txt").write_text("\n".join(lbl_lines))
-                    
-                    viz_bgr = tile_bgr.copy()
-                    for d in detections:
-                        poly_px = d['poly_px'].reshape((-1, 1, 2))
-                        cv2.polylines(viz_bgr, [poly_px], True, (255, 0, 255), 2)
-                        
-                        text_str = f"{d['conf']:.2f}"
-                        px, py = poly_px[0][0]
-                        cv2.putText(viz_bgr, text_str, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 2, cv2.LINE_AA)
-                        cv2.putText(viz_bgr, text_str, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1, cv2.LINE_AA)
-                        
-                    cv2.imwrite(str(spec_viz_dir / f"{stem}_viz.jpg"), viz_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                        viz_bgr = tile_bgr.copy()
+                        for d in detections:
+                            poly_px = d['poly_px'].reshape((-1, 1, 2))
+                            cv2.polylines(viz_bgr, [poly_px], True, (255, 0, 255), 2)
+                            
+                            text_str = f"{d['conf']:.2f}"
+                            px, py = poly_px[0][0]
+                            cv2.putText(viz_bgr, text_str, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 2, cv2.LINE_AA)
+                            cv2.putText(viz_bgr, text_str, (int(px)-5, int(py)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1, cv2.LINE_AA)
+                            
+                        cv2.imwrite(str(spec_viz_dir / f"{stem}_viz.jpg"), viz_bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
                     
             print(f"   ✓ {n_tiles} tiles -> {n_hits} Overlays | {n_negs} Negatives")
             t_tiles += n_tiles

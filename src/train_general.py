@@ -11,8 +11,14 @@ from datetime import datetime
 STAGED_AREA = os.getenv("STAGED_AREA", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/")
 STAGED_NEGATIVES = os.getenv("STAGED_NEGATIVES", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_negatives")
 STAGED_CURATED = os.getenv("STAGED_CURATED", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Curated_Retrain_Data")
+# Lycopodium spore tiles — auto-labelled by extract_spores.py and reviewed in the AL UI.
+# Images live under Staged_area/Species_curated/Lyc_spo/Reviewed/ after curation.
+STAGED_SPORES = os.getenv("STAGED_SPORES", "/home/meow/cesnet_cloud/bucket/PEG/Colorado/Staged_area/Species_curated/Lyc_spo/Reviewed")
 DATASET_ROOT = os.getenv("DATASET_ROOT", "/tmp/general_pollen_dataset")
 MODEL_DIR = os.getenv("MODEL_DIR", "/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen")
+
+# Class ID for Lycopodium spores in the general detection model.
+LYC_SPO_CLASS_ID = 46
 
 def prep_dataset():
     print("🧹 Preparing Dataset for General Pollen Detection...")
@@ -56,7 +62,21 @@ def prep_dataset():
                 pairs.append((img, lbl, True)) # Explicit Curated Positive
             else:
                 pairs.append((img, None, False)) # Explicit Curated Hard Negative Dirt
-                
+
+    # 4. Gather AL-reviewed Lycopodium spore tiles (class 46, Lyc_spo)
+    #    These come from extract_spores.py output, reviewed via the AL UI.
+    #    Labels already carry class id 46 — we pass them through unchanged.
+    if os.path.exists(STAGED_SPORES):
+        print("🍄 Injecting Lycopodium spore tiles (class 46)...")
+        spore_imgs = glob.glob(os.path.join(STAGED_SPORES, "Images", "*.jpg"))
+        n_spore = 0
+        for img in spore_imgs:
+            lbl = img.replace("Images", "Labels").replace(".jpg", ".txt")
+            if os.path.exists(lbl) and os.path.getsize(lbl) > 0:
+                pairs.append((img, lbl, "spore"))  # sentinel: spore labels passed as-is
+                n_spore += 1
+        print(f"   → {n_spore} spore tiles loaded")
+
     if not pairs:
         print("❌ No images found in staging areas!")
         return False
@@ -77,18 +97,69 @@ def prep_dataset():
             base = os.path.basename(img)
             name_only = os.path.splitext(base)[0]
             lbl_dest = os.path.join(DATASET_ROOT, split_name, 'labels', f"{name_only}.txt")
-            
+
             shutil.copy(img, os.path.join(DATASET_ROOT, split_name, 'images', base))
-            
-            # For General Pollen, all positive classes map to 0 ("pollen").
+
             with open(lbl_dest, 'w') as f_out:
-                if is_pos and lbl and os.path.exists(lbl):
+                if is_pos == "spore":
+                    # ── Lyc_spo tiles: pass labels through unchanged (class 46 preserved).
+                    # We still snap the polygon to the colour contour for consistency.
                     import cv2
                     import numpy as np
-                    
+
                     tile_bgr = cv2.imread(img)
                     H, W = tile_bgr.shape[:2]
-                    
+
+                    with open(lbl, 'r') as f_in:
+                        for line in f_in:
+                            parts = line.strip().split()
+                            if len(parts) >= 5:
+                                orig_cls = int(parts[0])  # always 46 for spores
+                                coords = [float(p) for p in parts[1:]]
+                                xs = coords[0::2]
+                                ys = coords[1::2]
+                                norm_xy = np.array(list(zip(xs, ys)), dtype=float)
+
+                                poly_px = np.zeros_like(norm_xy)
+                                poly_px[:, 0] = norm_xy[:, 0] * W
+                                poly_px[:, 1] = norm_xy[:, 1] * H
+                                poly_px = poly_px.astype(np.int32).reshape((-1, 1, 2))
+
+                                mask = np.zeros((H, W), dtype=np.uint8)
+                                cv2.fillPoly(mask, [poly_px], 255)
+
+                                hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
+                                S = hsv[:, :, 1]
+                                S_blurred = cv2.GaussianBlur(S, (5, 5), 0)
+                                _, binary = cv2.threshold(S_blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+                                binary = cv2.bitwise_and(binary, binary, mask=mask)
+                                kernel = np.ones((5, 5), np.uint8)
+                                binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+                                contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                                if contours:
+                                    largest_contour = max(contours, key=cv2.contourArea)
+                                    epsilon = 0.003 * cv2.arcLength(largest_contour, True)
+                                    smoothed_contour = cv2.approxPolyDP(largest_contour, epsilon, True)
+                                    final_poly_px = smoothed_contour.reshape(-1, 2)
+                                else:
+                                    final_poly_px = poly_px.reshape(-1, 2)
+
+                                final_norm_xy = final_poly_px.astype(float)
+                                final_norm_xy[:, 0] /= W
+                                final_norm_xy[:, 1] /= H
+
+                                final_coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in final_norm_xy)
+                                f_out.write(f"{orig_cls} {final_coords}\n")
+
+                elif is_pos and lbl and os.path.exists(lbl):
+                    # ── Pollen positive tiles: remap all classes to 0 ("pollen").
+                    import cv2
+                    import numpy as np
+
+                    tile_bgr = cv2.imread(img)
+                    H, W = tile_bgr.shape[:2]
+
                     with open(lbl, 'r') as f_in:
                         for line in f_in:
                             parts = line.strip().split()
@@ -97,15 +168,15 @@ def prep_dataset():
                                 xs = coords[0::2]
                                 ys = coords[1::2]
                                 norm_xy = np.array(list(zip(xs, ys)), dtype=float)
-                                
+
                                 poly_px = np.zeros_like(norm_xy)
                                 poly_px[:, 0] = norm_xy[:, 0] * W
                                 poly_px[:, 1] = norm_xy[:, 1] * H
                                 poly_px = poly_px.astype(np.int32).reshape((-1, 1, 2))
-                                
+
                                 mask = np.zeros((H, W), dtype=np.uint8)
                                 cv2.fillPoly(mask, [poly_px], 255)
-                                
+
                                 hsv = cv2.cvtColor(tile_bgr, cv2.COLOR_BGR2HSV)
                                 S = hsv[:,:,1]
                                 S_blurred = cv2.GaussianBlur(S, (5, 5), 0)
@@ -114,7 +185,7 @@ def prep_dataset():
                                 kernel = np.ones((5,5), np.uint8)
                                 binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
                                 contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                                
+
                                 if contours:
                                     largest_contour = max(contours, key=cv2.contourArea)
                                     epsilon = 0.003 * cv2.arcLength(largest_contour, True)
@@ -122,22 +193,23 @@ def prep_dataset():
                                     final_poly_px = smoothed_contour.reshape(-1, 2)
                                 else:
                                     final_poly_px = poly_px.reshape(-1, 2)
-                                    
+
                                 final_norm_xy = final_poly_px.astype(float)
                                 final_norm_xy[:, 0] /= W
                                 final_norm_xy[:, 1] /= H
-                                
+
                                 final_coords = " ".join(f"{x:.6f} {y:.6f}" for x, y in final_norm_xy)
                                 f_out.write(f"0 {final_coords}\n")
-                # If negative, we write nothing, creating an empty .txt file for Ultralytics
+                # If negative (is_pos == False), write nothing → empty .txt for Ultralytics
 
-    # Write unified data.yaml
+    # Write unified data.yaml — include both pollen (0) and spore (46) classes.
+    # At inference time, class 46 detections are filtered out before pollen counting.
     data_cfg = {
         'path': os.path.abspath(DATASET_ROOT),
         'train': 'train/images',
         'val': 'val/images',
         'test': 'test/images',
-        'names': {0: 'pollen'}
+        'names': {0: 'pollen', LYC_SPO_CLASS_ID: 'Lyc_spo'}
     }
     with open(os.path.join(DATASET_ROOT, 'data.yaml'), 'w') as f:
         yaml.dump(data_cfg, f, sort_keys=False)

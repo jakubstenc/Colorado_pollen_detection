@@ -13,6 +13,10 @@ urllib3.disable_warnings()
 from aicsimageio import AICSImage
 from ultralytics import YOLO
 
+# Class id assigned to Lycopodium spores in the general detection model.
+# Detections with this class are focus-aid particles, NOT pollen — skip them.
+LYC_SPO_CLASS_ID = 46
+
 # Add src to path
 sys.path.append("/home/meow/Documents/Antigravity/Colorado_pollen_detection/src")
 sys.path.append("/app/src")
@@ -289,6 +293,10 @@ def main():
                 lbl_lines = []
                 
                 for d in detections:
+                    # ── Skip Lycopodium spore detections (class 46) ──────────
+                    if d.get('cls', 0) == LYC_SPO_CLASS_ID:
+                        continue
+
                     grain_id += 1
                     poly_px = d['poly_px']
                     
