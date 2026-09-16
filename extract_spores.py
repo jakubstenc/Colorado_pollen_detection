@@ -215,7 +215,7 @@ def main():
     )
     parser.add_argument(
         "--model", type=str,
-        default="/home/meow/cesnet_cloud/bucket/PEG/Colorado/trained_models/general_pollen/latest.pt",
+        default="/home/meow/Documents/Antigravity/Colorado_pollen_detection/models/general_pollen/latest.pt",
         help="Path to the current general pollen model (best.pt / latest.pt)."
     )
     args = parser.parse_args()
