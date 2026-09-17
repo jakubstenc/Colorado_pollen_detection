@@ -27,19 +27,12 @@ spec:
               echo "Preparing container paths..."
               mkdir -p /app/src
 
-              echo "Finding latest YOLO general pollen model..."
-              LATEST_FOLDER=$(aws --endpoint-url "$S3_ENDPOINT" s3 ls "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/" --no-verify-ssl | grep "PRE general_pollen_" | grep -v "eval" | awk '{print $2}' | sort | tail -n 1)
-              echo "Downloading from: s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt"
-              aws --endpoint-url "$S3_ENDPOINT" s3 cp "s3://$S3_BUCKET/PEG/Colorado/trained_models/general_pollen/${LATEST_FOLDER}weights/best.pt" /app/best.pt --no-verify-ssl
-
               echo "Copying src helper modules..."
               cp /scripts/build_species_dataset.py /app/src/build_species_dataset.py
 
-              echo "Starting Lycopodium spore extraction..."
+              echo "Starting Lycopodium spore extraction (classical CV, no model needed)..."
               cd /app
               python3 /scripts/extract_spores.py \
-                --model /app/best.pt \
-                --conf 0.25 \
                 --max-tiles 200
 
               echo "Syncing spore tiles to S3..."

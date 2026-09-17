@@ -135,39 +135,148 @@ def tile_image(rgb, size=640, overlap=0.2):
             tile[:crop.shape[0], :crop.shape[1]] = crop
             yield tile, x, y
 
-def extract_general_pollen(tile, model, conf_thresh):
+def _split_cluster_watershed(mask_bin, conf, cls_id, H, W,
+                              cluster_ratio=1.6, min_grain_area_px=80):
+    """
+    Given a binary mask (uint8, same HxW as the tile) that likely contains
+    multiple touching grains, use distance-transform + watershed to split it
+    into individual grain contours.
+
+    Returns a list of detection dicts (same schema as extract_general_pollen).
+    If splitting produces no useful sub-contours, returns None so the caller
+    can fall back to the original detection.
+    """
+    # Distance transform to find grain centres
+    dist = cv2.distanceTransform(mask_bin, cv2.DIST_L2, 5)
+
+    # Adaptive threshold: peaks must be at least 35 % of the maximum distance
+    # (i.e. the approximate "radius" of an individual grain)
+    peak_thresh = max(dist.max() * 0.35, 3.0)
+    _, sure_fg = cv2.threshold(dist, peak_thresh, 255, cv2.THRESH_BINARY)
+    sure_fg = sure_fg.astype(np.uint8)
+
+    # Identify individual marker regions
+    num_labels, markers = cv2.connectedComponents(sure_fg)
+    if num_labels < 3:  # <2 grains found after splitting
+        return None
+
+    # Add 1 so the background is 0 and foreground labels start at 1
+    markers = markers + 1
+    # Mark unknown region (border between grains) as 0
+    sure_bg = cv2.dilate(mask_bin, np.ones((3, 3), np.uint8), iterations=2)
+    unknown = cv2.subtract(sure_bg, sure_fg)
+    markers[unknown == 255] = 0
+
+    # Watershed needs a 3-channel uint8 image
+    tile_ws = np.zeros((H, W, 3), dtype=np.uint8)
+    tile_ws[:, :, 0] = mask_bin  # use mask as proxy image
+    cv2.watershed(tile_ws, markers)
+
+    sub_detections = []
+    for label in range(2, num_labels + 1):  # label 1 = background after +1
+        grain_mask = np.zeros((H, W), dtype=np.uint8)
+        grain_mask[markers == label] = 255
+
+        # Find contour of this grain
+        contours, _ = cv2.findContours(grain_mask, cv2.RETR_EXTERNAL,
+                                        cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            continue
+
+        poly = contours[0].squeeze(1).astype(np.int32)
+        if len(poly) < 3 or cv2.contourArea(contours[0]) < min_grain_area_px:
+            continue
+
+        norm = poly.astype(float)
+        norm[:, 0] /= W
+        norm[:, 1] /= H
+        sub_detections.append({
+            'poly_norm': norm,
+            'poly_px': poly,
+            'conf': conf,
+            'cls': cls_id,
+        })
+
+    return sub_detections if len(sub_detections) >= 2 else None
+
+
+def extract_general_pollen(tile, model, conf_thresh,
+                           cluster_ratio=1.6, min_grain_area_px=80):
     """
     Runs the general_pollen YOLOv8 segmentation model on a 640x640 tile.
     Returns: list of dictionary detections -> [{'poly': [x1, y1, ...], 'conf': 0.9}]
+
+    When pollen grains touch each other the model sometimes groups them into a
+    single large detection.  This function detects those clusters (area >
+    ``cluster_ratio`` × median single-grain area) and splits them via a
+    distance-transform / watershed step, adding one detection per grain.
     """
     results = model(tile, verbose=False, retina_masks=True)
-    detections = []
+    raw_detections = []
 
     if results[0].masks is None or results[0].boxes is None:
-        return detections
+        return raw_detections
 
     H, W = tile.shape[:2]
-    # In segmentation YOLO models, masks.xy holds the polygons
     for mask_xy, box in zip(results[0].masks.xy, results[0].boxes):
         if mask_xy.shape[0] < 3:
             continue
-            
+
         c_conf = float(box.conf[0])
         if c_conf < conf_thresh:
             continue
-            
-        # Normalize polygon points to 0.0 - 1.0 for YOLO string definitions
+
         norm = mask_xy.copy().astype(float)
         norm[:, 0] /= W
         norm[:, 1] /= H
-        
-        detections.append({
+
+        raw_detections.append({
             'poly_norm': norm,
             'poly_px': mask_xy.copy().astype(np.int32),
             'conf': c_conf,
-            'cls': int(box.cls[0]),  # raw model class id; used for Lyc_spo filtering
+            'cls': int(box.cls[0]),
         })
-        
+
+    if not raw_detections:
+        return raw_detections
+
+    # ── Cluster-split post-processing ────────────────────────────────────────
+    # Estimate typical single-grain area from the smaller detections.
+    areas = [cv2.contourArea(d['poly_px']) for d in raw_detections]
+    if len(areas) > 1:
+        # Use the median of the lower half as the single-grain reference
+        sorted_areas = sorted(areas)
+        reference_area = float(np.median(sorted_areas[:max(1, len(sorted_areas) // 2)]))
+    else:
+        reference_area = float(areas[0]) if areas else 0.0
+
+    # Avoid division-by-zero / nonsensical reference
+    reference_area = max(reference_area, min_grain_area_px)
+
+    detections = []
+    for d in raw_detections:
+        area = cv2.contourArea(d['poly_px'])
+        if area < cluster_ratio * reference_area:
+            # Normal single-grain detection — keep as-is
+            detections.append(d)
+            continue
+
+        # Render mask and attempt watershed split
+        mask_bin = np.zeros((H, W), dtype=np.uint8)
+        cv2.fillPoly(mask_bin, [d['poly_px'].reshape((-1, 1, 2))], 255)
+
+        split = _split_cluster_watershed(
+            mask_bin, d['conf'], d['cls'], H, W,
+            cluster_ratio=cluster_ratio,
+            min_grain_area_px=min_grain_area_px
+        )
+
+        if split is not None:
+            detections.extend(split)
+        else:
+            # Splitting did not yield multiple grains — keep original
+            detections.append(d)
+
     return detections
 
 def generate_stats_report(stats, out_dir, registry):
